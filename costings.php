@@ -903,11 +903,11 @@
                                         <div class="col-md-1">
                                             <button type="button" class="btn btn-outline-primary w-100 open-material-modal" data-bs-toggle="modal" data-bs-target="#materialQuickAddModal" data-material-context="liner" data-material-type-name="Liner">Add New</button>
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Rate</label>
                                             <input type="number" step="0.01" id="liner_input_rate" class="form-control" placeholder="Rate">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Weight</label>
                                             <input type="number" step="0.01" id="liner_input_weight" class="form-control" placeholder="Weight">
                                         </div>
@@ -968,16 +968,16 @@
                                             <label class="form-label fw-bold">Weight</label>
                                             <input type="number" step="0.01" name="duplex_weight" id="duplex_weight" class="form-control" placeholder="Weight" value="<?= htmlspecialchars($data['duplex_weight'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Duplex Rate</label>
                                             <input type="number" step="0.01" name="duplex_rate" id="duplex_rate" class="form-control" value="<?= htmlspecialchars($data['duplex_rate'] ?? '0') ?>" readonly>
                                         </div>
 
-                                        <div class="col-md-4">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Printing</label>
                                             <input type="number" step="0.01" name="printing" id="printing" class="form-control" placeholder="Printing" value="<?= htmlspecialchars($data['printing'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Laminas</label>
                                             <input type="text" name="laminas_name" class="form-control" placeholder="Laminas" value="<?= htmlspecialchars($data['laminas_name'] ?? '') ?>">
                                         </div>
@@ -995,15 +995,15 @@
                                             </select>
                                         </div>
 
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Pesting</label>
                                             <input type="number" step="0.01" name="pesting" id="pesting" class="form-control" placeholder="Pesting" value="<?= htmlspecialchars($data['pesting'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Punching</label>
                                             <input type="number" step="0.01" name="punching" id="punching" class="form-control" placeholder="Punching" value="<?= htmlspecialchars($data['punching'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label fw-bold">Pin Rate</label>
                                             <input type="number" step="0.01" name="pin_rate" id="pin_rate" class="form-control" placeholder="Pin Rate" value="<?= htmlspecialchars($data['pin_rate'] ?? '') ?>">
                                         </div>
@@ -1012,15 +1012,15 @@
                                             <input type="number" step="0.01" name="pin_qty" id="pin_qty" class="form-control" placeholder="Pin Qty" value="<?= htmlspecialchars($data['pin_qty'] ?? '') ?>">
                                         </div>
 
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Side Pesting</label>
                                             <input type="number" step="0.01" name="side_pesting" id="side_pesting" class="form-control" placeholder="Side Pesting" value="<?= htmlspecialchars($data['side_pesting'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">UV Coating</label>
                                             <input type="number" step="0.01" name="uv_coating" id="uv_coating" class="form-control" placeholder="UV Coating" value="<?= htmlspecialchars($data['uv_coating'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Rixa bhadu</label>
                                             <input type="number" step="0.01" name="rixa_bhadu" id="rixa_bhadu" class="form-control" placeholder="Expense" value="<?= htmlspecialchars($data['rixa_bhadu'] ?? '') ?>">
                                         </div>

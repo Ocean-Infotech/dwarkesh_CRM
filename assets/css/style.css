@@ -112,10 +112,12 @@ body {
 #content {
     width: calc(100% - 250px);
     margin-left: 250px;
-    padding: 20px;
+    padding: 90px 20px 20px 20px;
     min-height: 100vh;
     transition: all var(--transition-speed);
 }
+
+
 
 #content.active {
     width: 100%;
@@ -124,12 +126,22 @@ body {
 
 /* Navbar Styling */
 .navbar {
+    position: fixed;
+    top: 10px;
+    left: 270px;
+    right: 20px;
     padding: 15px 10px;
     background: var(--card-bg);
     border: none;
     border-radius: 12px;
-    margin-bottom: 30px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    z-index: 1001;
+    transition: all var(--transition-speed);
+}
+
+/* When sidebar is collapsed (active), shift navbar to full width */
+#content.active .navbar {
+    left: 0;
 }
 
 .navbar-btn {
