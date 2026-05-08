@@ -1,0 +1,89 @@
+.report-card {
+    background: #fff;
+    border-top: 4px solid var(--primary-gold);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 10px;
+}
+.filter-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #444;
+    margin-bottom: 8px;
+    display: block;
+    text-transform: uppercase;
+}
+.report-result-container {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 2px dashed #e2e8f0;
+    margin-top: 20px;
+}
+.report-table th {
+    background-color: #fdfaf3;
+    color: var(--primary-gold-dark);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    padding: 12px;
+}
+
+/* Unified Input Styling */
+.form-control, .form-select, .select2-container--bootstrap-5 .select2-selection {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    padding: 0.75rem 1rem !important;
+    height: auto !important;
+    min-height: 50px;
+    font-size: 0.95rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background-color: #fff !important;
+}
+
+.form-control:focus, .form-select:focus, .select2-container--bootstrap-5.select2-container--focus .select2-selection {
+    border-color: var(--primary-gold) !important;
+    box-shadow: 0 0 0 4px rgba(197, 160, 89, 0.15) !important;
+    outline: none;
+}
+
+.select2-container--bootstrap-5 .select2-selection {
+    display: flex;
+    align-items: center;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted {
+    background-color: var(--primary-gold) !important;
+}
+
+.btn-primary, .btn-outline-secondary {
+    border-radius: 10px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.btn-primary {
+    background-color: var(--primary-gold);
+    border-color: var(--primary-gold);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-gold-dark);
+    border-color: var(--primary-gold-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(197, 160, 89, 0.3);
+}

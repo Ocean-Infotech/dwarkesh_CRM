@@ -1,0 +1,231 @@
+:root {
+    --primary-gold: #c5a059;
+    --print-black: #000;
+    --print-gray: #666;
+    --border-color: #333;
+}
+
+@page {
+    size: A4;
+    margin: 12mm;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--print-black);
+    background: #fff;
+}
+
+.print-wrapper {
+    max-width: 210mm;
+    margin: 0 auto;
+    background: #fff;
+    position: relative;
+}
+
+/* Header Styling */
+.header-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid var(--print-black);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+.company-info h1 {
+    font-size: 26px;
+    font-weight: 800;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    color: var(--primary-gold);
+}
+
+.company-info p {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--print-gray);
+}
+
+.logo-box img {
+    max-height: 75px;
+    width: auto;
+}
+
+/* Title Bar */
+.sheet-title {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.sheet-title h2 {
+    display: inline-block;
+    font-size: 18px;
+    font-weight: 800;
+    background: var(--print-black);
+    color: #fff;
+    padding: 5px 40px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Data Tables */
+.info-grid {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.info-grid td {
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    vertical-align: top;
+}
+
+.label-cell {
+    background-color: #f4f4f4;
+    font-weight: 700;
+    width: 130px;
+    text-transform: uppercase;
+    font-size: 9px;
+    color: #444;
+}
+
+.value-cell {
+    font-weight: 600;
+    font-size: 11px;
+}
+
+.section-header {
+    background: #f0f0f0;
+    font-weight: 800;
+    padding: 5px 10px;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    text-transform: uppercase;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-header i {
+    color: var(--primary-gold);
+}
+
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+
+.items-table th, .items-table td {
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+}
+
+.items-table th {
+    background: #fafafa;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 9px;
+    text-align: left;
+}
+
+/* Checkboxes */
+.check-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.box {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--print-black);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+}
+
+.box.active {
+    background: var(--print-black);
+    color: #fff;
+}
+
+.box.active::after {
+    content: "\F26E";
+    font-family: "bootstrap-icons";
+    font-size: 10px;
+}
+
+/* Signatures */
+.footer-section {
+    margin-top: 40px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+}
+
+.sign-placeholder {
+    text-align: center;
+    width: 180px;
+}
+
+.sign-line {
+    border-top: 1px dashed var(--print-black);
+    margin-bottom: 5px;
+}
+
+.sign-text {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 9px;
+}
+
+/* Utility */
+.no-print-zone {
+    padding: 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 30px;
+}
+
+@media print {
+    .no-print-zone {
+        display: none !important;
+    }
+    body {
+        padding: 0;
+        margin: 0;
+    }
+    .print-wrapper {
+        width: 100%;
+        border: none;
+    }
+}
+
+.badge-status {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-weight: 800;
+    text-transform: uppercase;
+}

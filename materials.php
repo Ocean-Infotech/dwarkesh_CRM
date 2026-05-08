@@ -1,43 +1,43 @@
 <?php
-    $pageTitle = "Materials";
-    $currentPage = "materials";
-    $headerTitle = "Manage Materials";
+$pageTitle = "Materials";
+$currentPage = "materials";
+$headerTitle = "Manage Materials";
 
-    include 'include/header.php';
+include 'include/header.php';
 
-    $table = "tbl_materials";
-    $redirection_url = "materials.php";
+$table = "tbl_materials";
+$redirection_url = "materials.php";
 
-    $mode = $_REQUEST['mode'] ?? '';
-    $id = isset($_REQUEST['id']) ? intval($_REQUEST['id']) : 0;
-    $data = null;
-    $error = '';
+$mode = $_REQUEST['mode'] ?? '';
+$id = isset($_REQUEST['id']) ? intval($_REQUEST['id']) : 0;
+$data = null;
+$error = '';
 
-    // Get material types for dropdown
-    $material_types = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name");
+// Get material types for dropdown
+$material_types = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name");
 
-    if ($mode === "add" && isset($_POST['btn_submit'])) {
-        $material_type_id = intval($_POST['material_type_id']);
-        $name = trim($_POST['name'] ?? '');
-        $name_escaped = addslashes($name);
-        $f_value = $_POST['f_value'] ?? 0;
-        $p_value = $_POST['p_value'] ?? 0;
-        $top_value = $_POST['top_value'] ?? 0;
-        $rate = $_POST['rate'] ?? 0;
-        $weight = $_POST['weight'] ?? 0;
-        $status = $_POST['status'] ?? 'deactive';
+if ($mode === "add" && isset($_POST['btn_submit'])) {
+    $material_type_id = intval($_POST['material_type_id']);
+    $name = trim($_POST['name'] ?? '');
+    $name_escaped = addslashes($name);
+    $f_value = $_POST['f_value'] ?? 0;
+    $p_value = $_POST['p_value'] ?? 0;
+    $top_value = $_POST['top_value'] ?? 0;
+    $rate = $_POST['rate'] ?? 0;
+    $weight = $_POST['weight'] ?? 0;
+    $status = $_POST['status'] ?? 'deactive';
 
-        if ($material_type_id <= 0 || $name === '') {
-            $error = 'Material Type and Name are required.';
-        } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE material_type_id='" . $material_type_id . "' AND name='" . addslashes($name) . "' AND is_deleted=0 LIMIT 1");
-            if (!empty($duplicate)) {
-                $error = 'This material already exists for the selected material type.';
-            }
+    if ($material_type_id <= 0 || $name === '') {
+        $error = 'Material Type and Name are required.';
+    } else {
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE material_type_id='" . $material_type_id . "' AND name='" . addslashes($name) . "' AND is_deleted=0 LIMIT 1");
+        if (!empty($duplicate)) {
+            $error = 'This material already exists for the selected material type.';
         }
+    }
 
-        if (empty($error)) {
-            $add_qry = "INSERT INTO $table SET
+    if (empty($error)) {
+        $add_qry = "INSERT INTO $table SET
                 material_type_id='" . $material_type_id . "',
                 name='" . $name_escaped . "',
                 f_value='" . $f_value . "',
@@ -47,45 +47,45 @@
                 weight='" . $weight . "',
                 status='" . $status . "',
                 created_by='" . $_SESSION['aid'] . "'";
-            $ai_db->aiQuery($add_qry);
-            $ai_core->aiGoPage($redirection_url . "?msg=1");
-            exit;
-        }
-
-        $data = [
-            'material_type_id' => $material_type_id,
-            'name' => htmlspecialchars($name),
-            'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
-            'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
-            'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
-            'rate' => htmlspecialchars($_POST['rate'] ?? ''),
-            'weight' => htmlspecialchars($_POST['weight'] ?? ''),
-            'status' => $status
-        ];
+        $ai_db->aiQuery($add_qry);
+        $ai_core->aiGoPage($redirection_url . "?msg=1");
+        exit;
     }
 
-    if ($mode === "edit" && isset($_POST['btn_submit'])) {
-        $material_type_id = intval($_POST['material_type_id']);
-        $name = trim($_POST['name'] ?? '');
-        $name_escaped = addslashes($name);
-        $f_value = $_POST['f_value'] ?? 0;
-        $p_value = $_POST['p_value'] ?? 0;
-        $top_value = $_POST['top_value'] ?? 0;
-        $rate = $_POST['rate'] ?? 0;
-        $weight = $_POST['weight'] ?? 0;
-        $status = $_POST['status'] ?? 'deactive';
+    $data = [
+        'material_type_id' => $material_type_id,
+        'name' => htmlspecialchars($name),
+        'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
+        'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
+        'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
+        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
+        'weight' => htmlspecialchars($_POST['weight'] ?? ''),
+        'status' => $status
+    ];
+}
 
-        if ($material_type_id <= 0 || $name === '') {
-            $error = 'Material Type and Name are required.';
-        } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE material_type_id='" . $material_type_id . "' AND name='" . addslashes($name) . "' AND is_deleted=0 AND id != '" . intval($id) . "' LIMIT 1");
-            if (!empty($duplicate)) {
-                $error = 'This material already exists for the selected material type.';
-            }
+if ($mode === "edit" && isset($_POST['btn_submit'])) {
+    $material_type_id = intval($_POST['material_type_id']);
+    $name = trim($_POST['name'] ?? '');
+    $name_escaped = addslashes($name);
+    $f_value = $_POST['f_value'] ?? 0;
+    $p_value = $_POST['p_value'] ?? 0;
+    $top_value = $_POST['top_value'] ?? 0;
+    $rate = $_POST['rate'] ?? 0;
+    $weight = $_POST['weight'] ?? 0;
+    $status = $_POST['status'] ?? 'deactive';
+
+    if ($material_type_id <= 0 || $name === '') {
+        $error = 'Material Type and Name are required.';
+    } else {
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE material_type_id='" . $material_type_id . "' AND name='" . addslashes($name) . "' AND is_deleted=0 AND id != '" . intval($id) . "' LIMIT 1");
+        if (!empty($duplicate)) {
+            $error = 'This material already exists for the selected material type.';
         }
+    }
 
-        if (empty($error)) {
-            $edit_qry = "UPDATE $table SET
+    if (empty($error)) {
+        $edit_qry = "UPDATE $table SET
                 material_type_id='" . $material_type_id . "',
                 name='" . $name_escaped . "',
                 f_value='" . $f_value . "',
@@ -96,91 +96,91 @@
                 status='" . $status . "',
                 updated_by='" . $_SESSION['aid'] . "'
                 WHERE id='" . intval($id) . "'";
-            $ai_db->aiQuery($edit_qry);
-            $ai_core->aiGoPage($redirection_url . "?msg=2");
-            exit;
-        }
-
-        $data = [
-            'material_type_id' => $material_type_id,
-            'name' => htmlspecialchars($name),
-            'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
-            'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
-            'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
-            'rate' => htmlspecialchars($_POST['rate'] ?? ''),
-            'weight' => htmlspecialchars($_POST['weight'] ?? ''),
-            'status' => $status
-        ];
+        $ai_db->aiQuery($edit_qry);
+        $ai_core->aiGoPage($redirection_url . "?msg=2");
+        exit;
     }
 
-    if ($mode === "delete" && $id) {
-        $ai_db->aiQuery("UPDATE $table SET
+    $data = [
+        'material_type_id' => $material_type_id,
+        'name' => htmlspecialchars($name),
+        'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
+        'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
+        'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
+        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
+        'weight' => htmlspecialchars($_POST['weight'] ?? ''),
+        'status' => $status
+    ];
+}
+
+if ($mode === "delete" && $id) {
+    $ai_db->aiQuery("UPDATE $table SET
             is_deleted=1,
             deleted_by='" . $_SESSION['aid'] . "',
             deleted_at=NOW()
             WHERE id='" . intval($id) . "'");
-        $ai_core->aiGoPage($redirection_url . "?msg=3");
+    $ai_core->aiGoPage($redirection_url . "?msg=3");
+    exit;
+}
+
+if ($mode === "edit" && $id && !isset($_POST['btn_submit'])) {
+    $query = "SELECT * FROM $table WHERE id='" . intval($id) . "' AND is_deleted=0 LIMIT 1";
+    $result = $ai_db->aiGetQuery($query);
+    $data = isset($result[0]) ? $result[0] : null;
+}
+
+$all_data = [];
+$totalRecords = 0;
+$totalPages = 1;
+$limit = 20;
+if (!$mode) {
+    $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+    $offset = ($page - 1) * $limit;
+
+    $filterSessionKey = 'materials_filters';
+    if (isset($_GET['action']) && $_GET['action'] === 'clear_filters') {
+        unset($_SESSION[$filterSessionKey]);
+        header('Location: materials.php');
         exit;
     }
 
-    if ($mode === "edit" && $id && !isset($_POST['btn_submit'])) {
-        $query = "SELECT * FROM $table WHERE id='" . intval($id) . "' AND is_deleted=0 LIMIT 1";
-        $result = $ai_db->aiGetQuery($query);
-        $data = isset($result[0]) ? $result[0] : null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $_SESSION[$filterSessionKey] = [
+            'filter_material_type' => $_POST['filter_material_type'] ?? '',
+            'filter_name' => trim($_POST['filter_name'] ?? ''),
+            'filter_status' => $_POST['filter_status'] ?? ''
+        ];
+        $page = 1;
+        $offset = 0;
     }
 
-    $all_data = [];
-    $totalRecords = 0;
-    $totalPages = 1;
-    $limit = 20;
-    if (!$mode) {
-        $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+    $filters = $_SESSION[$filterSessionKey] ?? [];
+    $hasActiveFilters = !empty(array_filter($filters, function ($value) {
+        return $value !== '' && $value !== null;
+    }));
+
+    $where_conditions = ["m.is_deleted=0"];
+    if (!empty($filters['filter_material_type'])) {
+        $where_conditions[] = "m.material_type_id = '" . intval($filters['filter_material_type']) . "'";
+    }
+    if (!empty($filters['filter_name'])) {
+        $where_conditions[] = "m.name LIKE '%" . addslashes($filters['filter_name']) . "%'";
+    }
+    if (!empty($filters['filter_status']) && $filters['filter_status'] !== '') {
+        $where_conditions[] = "m.status = '" . addslashes($filters['filter_status']) . "'";
+    }
+
+    $where_clause = implode(" AND ", $where_conditions);
+    $countResult = $ai_db->aiGetQuery("SELECT COUNT(*) as total FROM $table m WHERE $where_clause");
+    $totalRecords = isset($countResult[0]['total']) ? intval($countResult[0]['total']) : 0;
+    $totalPages = $totalRecords > 0 ? max(1, ceil($totalRecords / $limit)) : 1;
+    if ($page > $totalPages) {
+        $page = $totalPages;
         $offset = ($page - 1) * $limit;
-
-        $filterSessionKey = 'materials_filters';
-        if (isset($_GET['action']) && $_GET['action'] === 'clear_filters') {
-            unset($_SESSION[$filterSessionKey]);
-            header('Location: materials.php');
-            exit;
-        }
-
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $_SESSION[$filterSessionKey] = [
-                'filter_material_type' => $_POST['filter_material_type'] ?? '',
-                'filter_name' => trim($_POST['filter_name'] ?? ''),
-                'filter_status' => $_POST['filter_status'] ?? ''
-            ];
-            $page = 1;
-            $offset = 0;
-        }
-
-        $filters = $_SESSION[$filterSessionKey] ?? [];
-        $hasActiveFilters = !empty(array_filter($filters, function ($value) {
-            return $value !== '' && $value !== null;
-        }));
-
-        $where_conditions = ["m.is_deleted=0"];
-        if (!empty($filters['filter_material_type'])) {
-            $where_conditions[] = "m.material_type_id = '" . intval($filters['filter_material_type']) . "'";
-        }
-        if (!empty($filters['filter_name'])) {
-            $where_conditions[] = "m.name LIKE '%" . addslashes($filters['filter_name']) . "%'";
-        }
-        if (!empty($filters['filter_status']) && $filters['filter_status'] !== '') {
-            $where_conditions[] = "m.status = '" . addslashes($filters['filter_status']) . "'";
-        }
-
-        $where_clause = implode(" AND ", $where_conditions);
-        $countResult = $ai_db->aiGetQuery("SELECT COUNT(*) as total FROM $table m WHERE $where_clause");
-        $totalRecords = isset($countResult[0]['total']) ? intval($countResult[0]['total']) : 0;
-        $totalPages = $totalRecords > 0 ? max(1, ceil($totalRecords / $limit)) : 1;
-        if ($page > $totalPages) {
-            $page = $totalPages;
-            $offset = ($page - 1) * $limit;
-        }
-
-        $all_data = $ai_db->aiGetQuery("SELECT m.*, mt.name as material_type_name FROM $table m LEFT JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE $where_clause ORDER BY m.id DESC LIMIT $limit OFFSET $offset");
     }
+
+    $all_data = $ai_db->aiGetQuery("SELECT m.*, mt.name as material_type_name FROM $table m LEFT JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE $where_clause ORDER BY m.id DESC LIMIT $limit OFFSET $offset");
+}
 ?>
 
 <div class="container-fluid py-4">
@@ -190,7 +190,8 @@
         </h4>
         <?php if (!$mode) { ?>
             <div class="d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm rounded-circle btn-filter-toggle <?= !empty($hasActiveFilters) ? 'active' : '' ?>"
+                <button type="button"
+                    class="btn btn-outline-secondary btn-sm rounded-circle btn-filter-toggle <?= !empty($hasActiveFilters) ? 'active' : '' ?>"
                     data-bs-toggle="collapse" data-bs-target="#materialsFilterCollapse" aria-expanded="false"
                     aria-controls="materialsFilterCollapse" aria-label="Toggle Filters" title="Toggle Filters">
                     <i class="bi bi-funnel"></i>
@@ -230,14 +231,15 @@
                         </div>
                         <div class="col-md-4">
                             <label for="filter_name" class="form-label">Material Name</label>
-                            <input type="text" class="form-control" id="filter_name" name="filter_name" 
-                                   value="<?= htmlspecialchars($filters['filter_name'] ?? '') ?>" placeholder="Search by Name">
+                            <input type="text" class="form-control" id="filter_name" name="filter_name"
+                                value="<?= htmlspecialchars($filters['filter_name'] ?? '') ?>" placeholder="Search by Name">
                         </div>
                         <div class="col-md-4">
                             <label for="filter_status" class="form-label">Status</label>
                             <select class="form-select" id="filter_status" name="filter_status">
                                 <option value="">All Status</option>
-                                <option value="active" <?= ($filters['filter_status'] ?? '') === 'active' ? 'selected' : '' ?>>Active</option>
+                                <option value="active" <?= ($filters['filter_status'] ?? '') === 'active' ? 'selected' : '' ?>>
+                                    Active</option>
                                 <option value="deactive" <?= ($filters['filter_status'] ?? '') === 'deactive' ? 'selected' : '' ?>>Deactive</option>
                             </select>
                         </div>
@@ -275,7 +277,8 @@
                                 foreach ($all_data as $index => $row) { ?>
                                     <tr>
                                         <td>#<?= $index + 1 ?></td>
-                                        <td><span class="fw-semibold"><?= htmlspecialchars($row['material_type_name']) ?></span></td>
+                                        <td><span class="fw-semibold"><?= htmlspecialchars($row['material_type_name']) ?></span>
+                                        </td>
                                         <td><?= htmlspecialchars($row['name']) ?></td>
                                         <td><?= $row['f_value'] ?>/<?= $row['p_value'] ?>/<?= $row['top_value'] ?></td>
                                         <td>₹<?= number_format($row['rate'], 2) ?></td>
@@ -289,16 +292,19 @@
                                         </td>
                                         <td class="text-center">
                                             <div class="d-flex justify-content-center gap-2">
-                                                <a href="materials.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
+                                                <a href="materials.php?mode=edit&id=<?= $row['id'] ?>"
+                                                    class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
                                                     <i class="bi bi-pencil-square me-1"></i> Edit
                                                 </a>
-                                                <a href="materials.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this record?')">
+                                                <a href="materials.php?mode=delete&id=<?= $row['id'] ?>"
+                                                    class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete"
+                                                    onclick="return confirm('Are you sure you want to delete this record?')">
                                                     <i class="bi bi-trash me-1"></i> Delete
                                                 </a>
                                             </div>
                                         </td>
                                     </tr>
-                            <?php }
+                                <?php }
                             } else { ?>
                                 <tr>
                                     <td colspan="8" class="text-center py-5 text-muted">
@@ -313,7 +319,8 @@
                 <?php if ($totalRecords > 0) { ?>
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-3">
                         <div class="text-muted small">
-                            Showing <?= $offset + 1 ?> to <?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?> entries
+                            Showing <?= $offset + 1 ?> to <?= min($offset + $limit, $totalRecords) ?> of <?= $totalRecords ?>
+                            entries
                         </div>
                         <?php if ($totalPages > 1) { ?>
                             <nav aria-label="Page navigation">
@@ -370,32 +377,43 @@
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control form-control" placeholder="Enter Material Name" value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
+                                <input type="text" name="name" class="form-control form-control"
+                                    placeholder="Enter Material Name"
+                                    value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">F Value</label>
-                                <input type="number" step="0.01" name="f_value" class="form-control form-control" placeholder="Enter F Value" value="<?= isset($data['f_value']) ? $data['f_value'] : '' ?>">
+                                <input type="number" step="0.01" name="f_value" class="form-control form-control"
+                                    placeholder="Enter F Value"
+                                    value="<?= isset($data['f_value']) ? $data['f_value'] : '' ?>">
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">P Value</label>
-                                <input type="number" step="0.01" name="p_value" class="form-control form-control" placeholder="Enter P Value" value="<?= isset($data['p_value']) ? $data['p_value'] : '' ?>">
+                                <input type="number" step="0.01" name="p_value" class="form-control form-control"
+                                    placeholder="Enter P Value"
+                                    value="<?= isset($data['p_value']) ? $data['p_value'] : '' ?>">
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Top Value</label>
-                                <input type="number" step="0.01" name="top_value" class="form-control form-control" placeholder="Enter Top Value" value="<?= isset($data['top_value']) ? $data['top_value'] : '' ?>">
+                                <input type="number" step="0.01" name="top_value" class="form-control form-control"
+                                    placeholder="Enter Top Value"
+                                    value="<?= isset($data['top_value']) ? $data['top_value'] : '' ?>">
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Rate</label>
-                                <input type="number" step="0.01" name="rate" class="form-control form-control" placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
+                                <input type="number" step="0.01" name="rate" class="form-control form-control"
+                                    placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Weight (kg)</label>
-                                <input type="number" step="0.01" name="weight" class="form-control form-control" placeholder="Enter Weight (kg)" value="<?= isset($data['weight']) ? $data['weight'] : '' ?>">
+                                <input type="number" step="0.01" name="weight" class="form-control form-control"
+                                    placeholder="Enter Weight (kg)"
+                                    value="<?= isset($data['weight']) ? $data['weight'] : '' ?>">
                             </div>
 
                             <div class="col-md-3">
@@ -409,9 +427,11 @@
 
                         <div class="mt-4 pt-3 border-top text-end">
                             <button type="submit" name="btn_submit" class="btn btn-gold btn-sm rounded-pill px-4">
-                                <i class="bi bi-check-circle me-1"></i> <?= ($mode == 'edit') ? 'Update Material' : 'Save Material' ?>
+                                <i class="bi bi-check-circle me-1"></i>
+                                <?= ($mode == 'edit') ? 'Update Material' : 'Save Material' ?>
                             </button>
-                            <a href="materials.php" class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
+                            <a href="materials.php"
+                                class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
                         </div>
                     </form>
                 </div>
