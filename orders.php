@@ -166,6 +166,41 @@ $save_order_items = function ($order_id, $liner_items, $duplex_items) use ($ai_d
     }
 };
 
+$update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($ai_db) {
+    $product_id = intval($product_id);
+    $qty = floatval($qty);
+    if ($product_id <= 0 || $qty == 0)
+        return;
+
+    // Handle BOM Items
+    $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = '$product_id' AND is_deleted = 0");
+    foreach ((array) $bom_items as $bom) {
+        $m_name = addslashes($bom['material_name']);
+        $bom_qty_per_unit = floatval($bom['qty']);
+        $total_m_qty = $bom_qty_per_unit * abs($qty);
+
+        // Find material by name to update stock
+        $m_res = $ai_db->aiGetQuery("SELECT id FROM tbl_materials WHERE name = '$m_name' AND is_deleted = 0 LIMIT 1");
+        if (!empty($m_res)) {
+            $m_id = $m_res[0]['id'];
+            $op = ($action_type === 'minus') ? '-' : '+';
+            $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
+            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+        }
+    }
+
+    // Also handle Legacy Primary Mapped Material if any
+    $prod = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = '$product_id' LIMIT 1");
+    if (!empty($prod) && intval($prod[0]['mapped_material_id'] ?? 0) > 0 && floatval($prod[0]['usage_qty'] ?? 0) > 0) {
+        $m_id = intval($prod[0]['mapped_material_id']);
+        $usage = floatval($prod[0]['usage_qty']);
+        $total_m_qty = $usage * abs($qty);
+        $op = ($action_type === 'minus') ? '-' : '+';
+        $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
+        $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks (Primary)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+    }
+};
+
 if (isset($_POST['btn_submit'])) {
     $order_no = trim($_POST['order_no'] ?? '');
     $order_no = ltrim($order_no, '#');
@@ -489,7 +524,8 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="fw-bold m-0">
-            <span class="text-muted fw-light">Orders /</span> <?= $isFormMode ? ucfirst($mode) : 'All Records' ?>
+            <span class="text-muted fw-light">Orders /</span>
+            <?= $isFormMode ? ucfirst($mode) : 'All Records' ?>
         </h4>
         <?php if (!$isFormMode) { ?>
             <div class="d-flex align-items-center gap-2">
@@ -512,7 +548,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 
 
     <?php if (!empty($error)) { ?>
-        <div class="alert alert-danger border-0 shadow-sm"><?= htmlspecialchars($error) ?></div>
+        <div class="alert alert-danger border-0 shadow-sm">
+            <?= htmlspecialchars($error) ?>
+        </div>
     <?php } ?>
 
     <?php if ($isFormMode) { ?>
@@ -1088,7 +1126,8 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 
                 <div class="mt-4 pt-3 border-top text-end">
                     <button type="submit" name="btn_submit" class="btn btn-gold btn-sm rounded-pill px-4">
-                        <i class="bi bi-check-circle me-1"></i> <?= ($mode == 'edit') ? 'Update Order' : 'Save Order' ?>
+                        <i class="bi bi-check-circle me-1"></i>
+                        <?= ($mode == 'edit') ? 'Update Order' : 'Save Order' ?>
                     </button>
                     <a href="orders.php" class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
                 </div>
@@ -1162,15 +1201,25 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <?php if (!empty($all_data)) {
                                 foreach ($all_data as $index => $row) { ?>
                                     <tr>
-                                        <td><span
-                                                class="fw-semibold"><?= htmlspecialchars((string) ($row['order_no'] ?? '')) ?></span>
+                                        <td><span class="fw-semibold">
+                                                <?= htmlspecialchars((string) ($row['order_no'] ?? '')) ?>
+                                            </span>
                                         </td>
-                                        <td><?= date('d-m-Y', strtotime($row['order_date'])) ?></td>
-                                        <td><?= htmlspecialchars($row['customer_name']) ?></td>
-                                        <td><?= $row['brand_name'] !== '' ? htmlspecialchars($row['brand_name']) : '<span class="text-muted">-</span>' ?>
+                                        <td>
+                                            <?= date('d-m-Y', strtotime($row['order_date'])) ?>
                                         </td>
-                                        <td><?= htmlspecialchars($row['product_name']) ?></td>
-                                        <td>Rs. <?= number_format((float) $row['rate'], 2) ?></td>
+                                        <td>
+                                            <?= htmlspecialchars($row['customer_name']) ?>
+                                        </td>
+                                        <td>
+                                            <?= $row['brand_name'] !== '' ? htmlspecialchars($row['brand_name']) : '<span class="text-muted">-</span>' ?>
+                                        </td>
+                                        <td>
+                                            <?= htmlspecialchars($row['product_name']) ?>
+                                        </td>
+                                        <td>Rs.
+                                            <?= number_format((float) $row['rate'], 2) ?>
+                                        </td>
                                         <!-- <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['print_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['die_status'] ?? '-') ?></td>
@@ -1208,7 +1257,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 <?php if (!empty($totalRecords)) { ?>
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div class="text-muted small">
-                            Showing 1 to <?= $totalRecords ?> of <?= $totalRecords ?> entries
+                            Showing 1 to
+                            <?= $totalRecords ?> of
+                            <?= $totalRecords ?> entries
                         </div>
                     </div>
                 <?php } ?>
@@ -1497,15 +1548,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         }
 
         // Initialize Filter Brand Dropdown
-        if (filterCustSelect) {
-            filterCustSelect.addEventListener('change', function () {
-                updateBrands(this.value, '', filterBrandSelect);
-            });
-            const initialFilterBrand = "<?= htmlspecialchars($filter_brand_name) ?>";
-            if (filterCustSelect.value) {
-                updateBrands(filterCustSelect.value, initialFilterBrand, filterBrandSelect);
-            }
-        }
+
 
         function filterCostingsByCustomer(custId) {
             if (!costingSelect) return;
