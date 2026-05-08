@@ -402,19 +402,7 @@
         }
     }
 
-    $missing_order_columns = [
-        'liner_delivery_id' => "INT(11) DEFAULT NULL",
-        'liner_delivery_phone' => "VARCHAR(50) DEFAULT NULL",
-        'top_count' => "VARCHAR(100) DEFAULT NULL",
-        'duplex_delivery_id' => "INT(11) DEFAULT NULL",
-        'duplex_delivery_phone' => "VARCHAR(50) DEFAULT NULL"
-    ];
-    foreach ($missing_order_columns as $column_name => $definition) {
-        if (!isset($order_columns[$column_name])) {
-            $ai_db->aiQuery("ALTER TABLE $table ADD COLUMN `$column_name` $definition");
-            $order_columns[$column_name] = true;
-        }
-    }
+    // Columns are now ensured via dwarkesh_ensure_core_tables in schema_bootstrap.php
 
     $order_items_columns = [];
     $order_items_columns_raw = $ai_db->aiGetQuery("SHOW COLUMNS FROM tbl_orders_item");

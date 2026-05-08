@@ -85,6 +85,40 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
                 `plate_status` varchar(20) DEFAULT 'No',
                 `print_status` varchar(20) DEFAULT 'No',
                 `die_status` varchar(20) DEFAULT 'No',
+                `liner_delivery_id` int(11) DEFAULT NULL,
+                `liner_delivery_phone` varchar(50) DEFAULT NULL,
+                `top_count` varchar(100) DEFAULT NULL,
+                `duplex_delivery_id` int(11) DEFAULT NULL,
+                `duplex_delivery_phone` varchar(50) DEFAULT NULL,
+                `printing_by_id` int(11) DEFAULT NULL,
+                `offset_image` varchar(255) DEFAULT NULL,
+                `print_color` varchar(255) DEFAULT NULL,
+                `print_qty` varchar(255) DEFAULT NULL,
+                `print_delivery_id` int(11) DEFAULT NULL,
+                `print_delivery_phone` varchar(50) DEFAULT NULL,
+                `die_maker` varchar(255) DEFAULT NULL,
+                `die_code` varchar(100) DEFAULT NULL,
+                `c_die_code` varchar(100) DEFAULT NULL,
+                `designer` varchar(255) DEFAULT NULL,
+                `plate` varchar(255) DEFAULT NULL,
+                `half_film` tinyint(1) DEFAULT 0,
+                `full_film` tinyint(1) DEFAULT 0,
+                `lamination_type` varchar(100) DEFAULT NULL,
+                `lamination_extra` varchar(255) DEFAULT NULL,
+                `laminas_delivery_id` int(11) DEFAULT NULL,
+                `laminas_delivery_phone` varchar(50) DEFAULT NULL,
+                `job_pesting` tinyint(1) DEFAULT 0,
+                `job_pin` tinyint(1) DEFAULT 0,
+                `job_punching` tinyint(1) DEFAULT 0,
+                `job_side_pesting` tinyint(1) DEFAULT 0,
+                `bill_design` varchar(255) DEFAULT NULL,
+                `bill_plate` varchar(255) DEFAULT NULL,
+                `bill_daei` varchar(255) DEFAULT NULL,
+                `bill_photo_price` varchar(255) DEFAULT NULL,
+                `bill_pcs` varchar(255) DEFAULT NULL,
+                `bill_rixa_bhadu` varchar(255) DEFAULT NULL,
+                `bill_borrow_charge` varchar(255) DEFAULT NULL,
+                `bill_remark` text,
                 `status` enum('active','deactive') DEFAULT 'active',
                 `created_by` int(11) DEFAULT NULL,
                 `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -125,6 +159,55 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
         $columns = $ai_db->aiGetQuery("SHOW COLUMNS FROM `tbl_costings` LIKE 'duplex_items'");
         if (empty($columns)) {
             $ai_db->aiQuery("ALTER TABLE `tbl_costings` ADD `duplex_items` longtext AFTER `liner_rate` ");
+        }
+
+        $order_columns_list = [
+            'liner_delivery_id' => "int(11) DEFAULT NULL",
+            'liner_delivery_phone' => "varchar(50) DEFAULT NULL",
+            'top_count' => "varchar(100) DEFAULT NULL",
+            'duplex_delivery_id' => "int(11) DEFAULT NULL",
+            'duplex_delivery_phone' => "varchar(50) DEFAULT NULL",
+            'printing_by_id' => "int(11) DEFAULT NULL",
+            'offset_image' => "varchar(255) DEFAULT NULL",
+            'print_color' => "varchar(255) DEFAULT NULL",
+            'print_qty' => "varchar(255) DEFAULT NULL",
+            'print_delivery_id' => "int(11) DEFAULT NULL",
+            'print_delivery_phone' => "varchar(50) DEFAULT NULL",
+            'die_maker' => "varchar(255) DEFAULT NULL",
+            'die_code' => "varchar(100) DEFAULT NULL",
+            'c_die_code' => "varchar(100) DEFAULT NULL",
+            'designer' => "varchar(255) DEFAULT NULL",
+            'plate' => "varchar(255) DEFAULT NULL",
+            'half_film' => "tinyint(1) DEFAULT 0",
+            'full_film' => "tinyint(1) DEFAULT 0",
+            'lamination_type' => "varchar(100) DEFAULT NULL",
+            'lamination_extra' => "varchar(255) DEFAULT NULL",
+            'laminas_delivery_id' => "int(11) DEFAULT NULL",
+            'laminas_delivery_phone' => "varchar(50) DEFAULT NULL",
+            'job_pesting' => "tinyint(1) DEFAULT 0",
+            'job_pin' => "tinyint(1) DEFAULT 0",
+            'job_punching' => "tinyint(1) DEFAULT 0",
+            'job_side_pesting' => "tinyint(1) DEFAULT 0",
+            'bill_design' => "varchar(255) DEFAULT NULL",
+            'bill_plate' => "varchar(255) DEFAULT NULL",
+            'bill_daei' => "varchar(255) DEFAULT NULL",
+            'bill_photo_price' => "varchar(255) DEFAULT NULL",
+            'bill_pcs' => "varchar(255) DEFAULT NULL",
+            'bill_rixa_bhadu' => "varchar(255) DEFAULT NULL",
+            'bill_borrow_charge' => "varchar(255) DEFAULT NULL",
+            'bill_remark' => "text"
+        ];
+
+        $existing_cols = [];
+        $res = $ai_db->aiGetQuery("SHOW COLUMNS FROM `tbl_orders` ");
+        foreach ($res as $r) {
+            $existing_cols[strtolower($r['Field'])] = true;
+        }
+
+        foreach ($order_columns_list as $col => $def) {
+            if (!isset($existing_cols[strtolower($col)])) {
+                $ai_db->aiQuery("ALTER TABLE `tbl_orders` ADD `$col` $def");
+            }
         }
 
         $schema_ready = true;
