@@ -278,10 +278,13 @@
         }
         $liner_rate = round($liner_rate, 2);
 
-        $duplex_material_id = intval($_POST['duplex_material_id'] ?? 0);
-        $duplex_input_rate = costing_decimal($_POST['duplex_input_rate'] ?? 0);
-        $duplex_weight = costing_decimal($_POST['duplex_weight'] ?? 0);
-        $duplex_rate = round($duplex_input_rate * $duplex_weight, 2);
+        $duplex_items = costing_normalize_line_items($_POST['duplex_items_json'] ?? '[]', $materialLookup);
+        $duplex_rate = 0;
+        foreach ($duplex_items as $duplex_item) {
+            $duplex_rate += $duplex_item['amount'];
+        }
+        $duplex_rate = round($duplex_rate, 2);
+
         $printing = costing_decimal($_POST['printing'] ?? 0);
         $laminas_name = costing_text($_POST['laminas_name'] ?? '');
         $laminas_value = costing_decimal($_POST['laminas_value'] ?? 0);
@@ -309,7 +312,6 @@
 
         $customer_name = $customerNameMap[$customer_id] ?? '';
         $product_name = $productMap[$product_id]['name'] ?? '';
-        $duplex_name = ($duplex_material_id > 0 && isset($materialLookup[$duplex_material_id])) ? $materialLookup[$duplex_material_id]['name'] : '';
 
         if ($customer_id <= 0 || $product_id <= 0) {
             $error = 'M/S and Box Name are required.';
@@ -331,10 +333,7 @@
                 sheet_unit='" . addslashes($sheet_unit) . "',
                 liner_items='" . $liner_items_json . "',
                 liner_rate='" . $liner_rate . "',
-                duplex_material_id='" . $duplex_material_id . "',
-                duplex_name='" . addslashes($duplex_name) . "',
-                duplex_input_rate='" . $duplex_input_rate . "',
-                duplex_weight='" . $duplex_weight . "',
+                duplex_items='" . addslashes(json_encode($duplex_items, JSON_UNESCAPED_UNICODE)) . "',
                 duplex_rate='" . $duplex_rate . "',
                 printing='" . $printing . "',
                 laminas_name='" . addslashes($laminas_name) . "',
@@ -372,9 +371,7 @@
             'sheet_unit' => $sheet_unit,
             'liner_items' => $liner_items,
             'liner_rate' => $liner_rate,
-            'duplex_material_id' => $duplex_material_id,
-            'duplex_input_rate' => $duplex_input_rate,
-            'duplex_weight' => $duplex_weight,
+            'duplex_items' => $duplex_items,
             'duplex_rate' => $duplex_rate,
             'printing' => $printing,
             'laminas_name' => $laminas_name,
@@ -421,10 +418,13 @@
         }
         $liner_rate = round($liner_rate, 2);
 
-        $duplex_material_id = intval($_POST['duplex_material_id'] ?? 0);
-        $duplex_input_rate = costing_decimal($_POST['duplex_input_rate'] ?? 0);
-        $duplex_weight = costing_decimal($_POST['duplex_weight'] ?? 0);
-        $duplex_rate = round($duplex_input_rate * $duplex_weight, 2);
+        $duplex_items = costing_normalize_line_items($_POST['duplex_items_json'] ?? '[]', $materialLookup);
+        $duplex_rate = 0;
+        foreach ($duplex_items as $duplex_item) {
+            $duplex_rate += $duplex_item['amount'];
+        }
+        $duplex_rate = round($duplex_rate, 2);
+
         $printing = costing_decimal($_POST['printing'] ?? 0);
         $laminas_name = costing_text($_POST['laminas_name'] ?? '');
         $laminas_value = costing_decimal($_POST['laminas_value'] ?? 0);
@@ -452,7 +452,6 @@
 
         $customer_name = $customerNameMap[$customer_id] ?? '';
         $product_name = $productMap[$product_id]['name'] ?? '';
-        $duplex_name = ($duplex_material_id > 0 && isset($materialLookup[$duplex_material_id])) ? $materialLookup[$duplex_material_id]['name'] : '';
 
         if ($customer_id <= 0 || $product_id <= 0) {
             $error = 'M/S and Box Name are required.';
@@ -474,10 +473,7 @@
                 sheet_unit='" . addslashes($sheet_unit) . "',
                 liner_items='" . $liner_items_json . "',
                 liner_rate='" . $liner_rate . "',
-                duplex_material_id='" . $duplex_material_id . "',
-                duplex_name='" . addslashes($duplex_name) . "',
-                duplex_input_rate='" . $duplex_input_rate . "',
-                duplex_weight='" . $duplex_weight . "',
+                duplex_items='" . addslashes(json_encode($duplex_items, JSON_UNESCAPED_UNICODE)) . "',
                 duplex_rate='" . $duplex_rate . "',
                 printing='" . $printing . "',
                 laminas_name='" . addslashes($laminas_name) . "',
@@ -517,9 +513,7 @@
             'sheet_unit' => $sheet_unit,
             'liner_items' => $liner_items,
             'liner_rate' => $liner_rate,
-            'duplex_material_id' => $duplex_material_id,
-            'duplex_input_rate' => $duplex_input_rate,
-            'duplex_weight' => $duplex_weight,
+            'duplex_items' => $duplex_items,
             'duplex_rate' => $duplex_rate,
             'printing' => $printing,
             'laminas_name' => $laminas_name,
@@ -558,6 +552,9 @@
         $data = isset($result[0]) ? $result[0] : null;
         if ($data && isset($data['liner_items']) && is_string($data['liner_items'])) {
             $data['liner_items'] = costing_normalize_line_items($data['liner_items'], $materialLookup);
+        }
+        if ($data && isset($data['duplex_items']) && is_string($data['duplex_items'])) {
+            $data['duplex_items'] = costing_normalize_line_items($data['duplex_items'], $materialLookup);
         }
     }
 
@@ -953,48 +950,78 @@
                                 </div>
 
                                 <div class="estimation-section">
-                                    <div class="estimation-section-title">Duplex And Finishing</div>
-                                    <div class="row g-3">
+                                    <div class="estimation-section-title">Duplex List</div>
+                                    <div class="row g-3 align-items-end">
                                         <div class="col-md-4">
-                                            <label class="form-label fw-bold">Duplex</label>
-                                            <div class="input-group">
-                                                <select name="duplex_material_id" id="duplex_material_id" class="form-select">
-                                                    <option value="">Select Duplex</option>
-                                                    <?php foreach ($duplexMaterials as $duplexMaterial) { ?>
-                                                        <option value="<?= $duplexMaterial['id'] ?>" <?= (isset($data['duplex_material_id']) && $data['duplex_material_id'] == $duplexMaterial['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($duplexMaterial['name']) ?>
-                                                        </option>
-                                                    <?php } ?>
-                                                </select>
-                                                <button type="button" class="btn btn-outline-primary mini-action-link open-material-modal" data-bs-toggle="modal" data-bs-target="#materialQuickAddModal" data-material-context="duplex" data-material-type-name="Duplex">Add New</button>
-                                            </div>
+                                            <label class="form-label fw-bold">Select Duplex</label>
+                                            <select id="duplex_material_id" class="form-select">
+                                                <option value="">Select Duplex</option>
+                                                <?php foreach ($duplexMaterials as $duplexMaterial) { ?>
+                                                    <option value="<?= $duplexMaterial['id'] ?>">
+                                                        <?= htmlspecialchars($duplexMaterial['name']) ?>
+                                                    </option>
+                                                <?php } ?>
+                                            </select>
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-1">
+                                            <button type="button" class="btn btn-outline-primary w-100 open-material-modal" data-bs-toggle="modal" data-bs-target="#materialQuickAddModal" data-material-context="duplex" data-material-type-name="Duplex">Add New</button>
+                                        </div>
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Rate</label>
-                                            <input type="number" step="0.01" name="duplex_input_rate" id="duplex_input_rate" class="form-control" placeholder="Rate" value="<?= htmlspecialchars($data['duplex_input_rate'] ?? '') ?>">
+                                            <input type="number" step="0.01" id="duplex_input_rate" class="form-control" placeholder="Rate">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Weight</label>
-                                            <input type="number" step="0.01" name="duplex_weight" id="duplex_weight" class="form-control" placeholder="Weight" value="<?= htmlspecialchars($data['duplex_weight'] ?? '') ?>">
+                                            <input type="number" step="0.01" id="duplex_input_weight" class="form-control" placeholder="Weight">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-1">
+                                            <button type="button" id="add_duplex_item" class="btn btn-gold w-100">Add</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="table-responsive mt-3">
+                                        <table class="table table-bordered table-liner mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th width="140">Rate</th>
+                                                    <th width="140">Weight</th>
+                                                    <th width="120" class="text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="duplex_items_table_body">
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-4">No duplex added yet.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <input type="hidden" name="duplex_items_json" id="duplex_items_json" value="<?= htmlspecialchars(json_encode($data['duplex_items'] ?? [], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>">
+
+                                    <div class="row g-3 mt-1">
+                                        <div class="col-md-4">
                                             <label class="form-label fw-bold">Duplex Rate</label>
                                             <input type="number" step="0.01" name="duplex_rate" id="duplex_rate" class="form-control" value="<?= htmlspecialchars($data['duplex_rate'] ?? '0') ?>" readonly>
                                         </div>
+                                    </div>
+                                </div>
 
-                                        <div class="col-md-2">
+                                <div class="estimation-section">
+                                    <div class="estimation-section-title">Other Calculation</div>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Printing</label>
                                             <input type="number" step="0.01" name="printing" id="printing" class="form-control" placeholder="Printing" value="<?= htmlspecialchars($data['printing'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Laminas</label>
                                             <input type="text" name="laminas_name" class="form-control" placeholder="Laminas" value="<?= htmlspecialchars($data['laminas_name'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Laminas Rate</label>
                                             <input type="number" step="0.01" name="laminas_value" id="laminas_value" class="form-control" placeholder="0" value="<?= htmlspecialchars($data['laminas_value'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Type</label>
                                             <select name="laminas_unit" class="form-select">
                                                 <option value="single_side" <?= (($data['laminas_unit'] ?? 'single_side') === 'single_side') ? 'selected' : '' ?>>Single Side</option>
@@ -1004,15 +1031,15 @@
                                             </select>
                                         </div>
 
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Pesting</label>
                                             <input type="number" step="0.01" name="pesting" id="pesting" class="form-control" placeholder="Pesting" value="<?= htmlspecialchars($data['pesting'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Punching</label>
                                             <input type="number" step="0.01" name="punching" id="punching" class="form-control" placeholder="Punching" value="<?= htmlspecialchars($data['punching'] ?? '') ?>">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
                                             <label class="form-label fw-bold">Pin Rate</label>
                                             <input type="number" step="0.01" name="pin_rate" id="pin_rate" class="form-control" placeholder="Pin Rate" value="<?= htmlspecialchars($data['pin_rate'] ?? '') ?>">
                                         </div>
@@ -1323,16 +1350,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const linerTableBody = document.getElementById('liner_items_table_body');
     const linerItemsJson = document.getElementById('liner_items_json');
     const linerRateField = document.getElementById('liner_rate');
-    const duplexMaterialSelect = document.getElementById('duplex_material_id');
-    const duplexRateInput = document.getElementById('duplex_input_rate');
-    const duplexWeightInput = document.getElementById('duplex_weight');
-    const duplexRateField = document.getElementById('duplex_rate');
     const totalField = document.getElementById('total');
     const uppsField = document.getElementById('upps');
     const singleRateField = document.getElementById('single_rate');
     const profitField = document.getElementById('profit');
     const profitPercentField = document.getElementById('profit_percent');
     const saleRateField = document.getElementById('sale_rate');
+    const duplexMaterialSelect = document.getElementById('duplex_material_id');
+    const duplexRateInput = document.getElementById('duplex_input_rate');
+    const duplexWeightInput = document.getElementById('duplex_input_weight');
+    const duplexRateField = document.getElementById('duplex_rate');
+    const duplexTableBody = document.getElementById('duplex_items_table_body');
+    const duplexItemsJson = document.getElementById('duplex_items_json');
+    const addDuplexButton = document.getElementById('add_duplex_item');
     const customerQuickAddForm = document.getElementById('customerQuickAddForm');
     const productQuickAddForm = document.getElementById('productQuickAddForm');
     const materialQuickAddForm = document.getElementById('materialQuickAddForm');
@@ -1360,6 +1390,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let profitSyncMode = 'amount';
     let linerItems = [];
+    let duplexItems = [];
     let activeMaterialContext = 'liner';
 
     const customerModalInstance = customerQuickAddModal ? bootstrap.Modal.getOrCreateInstance(customerQuickAddModal) : null;
@@ -1592,10 +1623,36 @@ document.addEventListener('DOMContentLoaded', function () {
         recalculateTotals();
     }
 
-    function recalculateTotals() {
-        const duplexAmount = roundValue(parseNumber(duplexRateInput.value) * parseNumber(duplexWeightInput.value));
-        duplexRateField.value = formatValue(duplexAmount);
+    function renderDuplexItems() {
+        if (!duplexItems.length) {
+            duplexTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No duplex added yet.</td></tr>';
+        } else {
+            duplexTableBody.innerHTML = duplexItems.map(function (item, index) {
+                return `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${formatValue(item.rate)}</td>
+                        <td>${formatValue(item.weight)}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-duplex-item" data-index="${index}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
 
+        duplexItemsJson.value = JSON.stringify(duplexItems);
+        const duplexTotal = duplexItems.reduce(function (sum, item) {
+            return sum + parseNumber(item.amount);
+        }, 0);
+        duplexRateField.value = formatValue(duplexTotal);
+        recalculateTotals();
+    }
+
+    function recalculateTotals() {
+        const duplexAmount = parseNumber(duplexRateField.value);
         const linerAmount = parseNumber(linerRateField.value);
         const printing = parseNumber(document.getElementById('printing').value);
         const laminas = parseNumber(document.getElementById('laminas_value').value);
@@ -1632,8 +1689,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     try {
         linerItems = JSON.parse(linerItemsJson.value || '[]');
+        duplexItems = JSON.parse(duplexItemsJson.value || '[]');
     } catch (error) {
         linerItems = [];
+        duplexItems = [];
     }
 
     if (profitPercentField.value && parseNumber(profitPercentField.value) > 0 && parseNumber(profitField.value) <= 0) {
@@ -1642,11 +1701,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     populateBrandOptions(customerSelect.value, brandSelect.dataset.selectedBrand || brandSelect.value);
     renderLinerItems();
+    renderDuplexItems();
     if (productSelect.value) {
         applyProductDefaults(productSelect.value, false);
-    }
-    if (duplexMaterialSelect.value) {
-        fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexWeightInput, duplexMaterials, false);
     }
     recalculateTotals();
 
@@ -1844,20 +1901,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    customerSelect.addEventListener('change', function () {
+    jQuery(customerSelect).on('change', function () {
         brandSelect.dataset.selectedBrand = '';
         populateBrandOptions(this.value, '');
     });
 
-    brandSelect.addEventListener('change', function () {
+    jQuery(brandSelect).on('change', function () {
         brandSelect.dataset.selectedBrand = this.value;
     });
 
-    productSelect.addEventListener('change', function () {
+    jQuery(productSelect).on('change', function () {
         applyProductDefaults(this.value, true);
     });
 
-    linerMaterialSelect.addEventListener('change', function () {
+    jQuery(linerMaterialSelect).on('change', function () {
         fillMaterialInputs(linerMaterialSelect, linerRateInput, linerWeightInput, linerMaterials, true);
     });
 
@@ -1896,9 +1953,43 @@ document.addEventListener('DOMContentLoaded', function () {
         renderLinerItems();
     });
 
-    duplexMaterialSelect.addEventListener('change', function () {
+    jQuery(duplexMaterialSelect).on('change', function () {
         fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexWeightInput, duplexMaterials, true);
-        recalculateTotals();
+    });
+
+    addDuplexButton.addEventListener('click', function () {
+        const selectedOption = duplexMaterialSelect.options[duplexMaterialSelect.selectedIndex];
+        if (!duplexMaterialSelect.value || !selectedOption || !selectedOption.text) {
+            alert('Please select a duplex.');
+            return;
+        }
+
+        const rate = parseNumber(duplexRateInput.value);
+        const weight = parseNumber(duplexWeightInput.value);
+
+        duplexItems.push({
+            material_id: parseInt(duplexMaterialSelect.value, 10) || 0,
+            name: selectedOption.text.trim(),
+            rate: roundValue(rate),
+            weight: roundValue(weight),
+            amount: roundValue(rate * weight)
+        });
+
+        duplexMaterialSelect.value = '';
+        duplexRateInput.value = '';
+        duplexWeightInput.value = '';
+        renderDuplexItems();
+    });
+
+    duplexTableBody.addEventListener('click', function (event) {
+        const removeButton = event.target.closest('.remove-duplex-item');
+        if (!removeButton) {
+            return;
+        }
+
+        const itemIndex = parseInt(removeButton.dataset.index, 10);
+        duplexItems.splice(itemIndex, 1);
+        renderDuplexItems();
     });
 
     [duplexRateInput, duplexWeightInput, uppsField].concat(moneyInputs).forEach(function (input) {

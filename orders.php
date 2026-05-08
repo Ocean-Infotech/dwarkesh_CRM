@@ -1569,19 +1569,28 @@
 
         function updateBrands(custId, selectedBrand = '') {
             if (!brandSelect) return;
+            
+            // Clear and add placeholder
             brandSelect.innerHTML = '<option value="">Select Brand</option>';
-            if (custId && customerBrandsMap[custId]) {
-                customerBrandsMap[custId].forEach(brand => {
-                    const opt = document.createElement('option');
-                    opt.value = brand;
-                    opt.textContent = brand;
-                    if (brand === selectedBrand) opt.selected = true;
-                    brandSelect.appendChild(opt);
-                });
+            
+            if (custId && customerBrandsMap && customerBrandsMap[custId]) {
+                const brands = customerBrandsMap[custId];
+                if (Array.isArray(brands)) {
+                    brands.forEach(brand => {
+                        const opt = document.createElement('option');
+                        opt.value = brand;
+                        opt.textContent = brand;
+                        if (String(brand) === String(selectedBrand)) opt.selected = true;
+                        brandSelect.appendChild(opt);
+                    });
+                }
             }
 
-            if (typeof refreshSelect2Dropdown === 'function') {
-                refreshSelect2Dropdown(brandSelect);
+            // Refresh Select2 if it exists
+            if (typeof window.refreshSelect2Dropdown === 'function') {
+                window.refreshSelect2Dropdown(brandSelect);
+            } else if (window.jQuery && jQuery.fn.select2 && jQuery(brandSelect).hasClass('select2-hidden-accessible')) {
+                jQuery(brandSelect).trigger('change');
             }
         }
 
@@ -1592,6 +1601,10 @@
                 if (opt.dataset.customer == custId || custId === "") opt.style.display = "";
                 else opt.style.display = "none";
             });
+
+            if (typeof window.refreshSelect2Dropdown === 'function') {
+                window.refreshSelect2Dropdown(costingSelect);
+            }
         }
 
         function upsertOption(selectElement, value, label, extraData = {}) {
@@ -1769,12 +1782,14 @@
         }
 
         if (custSelect) {
+            const $custSelect = jQuery(custSelect);
+
             if (custSelect.value) {
                 updateBrands(custSelect.value, currentBrand);
                 filterCostingsByCustomer(custSelect.value);
             }
 
-            custSelect.addEventListener('change', function() {
+            $custSelect.on('change', function() {
                 const custId = this.value;
                 updateBrands(custId);
                 filterCostingsByCustomer(custId);
@@ -1799,13 +1814,13 @@
         renderDuplexItems();
 
         if (linerMaterialSelect) {
-            linerMaterialSelect.addEventListener('change', function() {
+            jQuery(linerMaterialSelect).on('change', function() {
                 fillMaterialInputs(linerMaterialSelect, linerRateInput, linerQtyInput);
             });
         }
 
         if (duplexMaterialSelect) {
-            duplexMaterialSelect.addEventListener('change', function() {
+            jQuery(duplexMaterialSelect).on('change', function() {
                 fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
             });
         }
@@ -1818,7 +1833,7 @@
         }
 
         if (linerDeliverySelect) {
-            linerDeliverySelect.addEventListener('change', function() {
+            jQuery(linerDeliverySelect).on('change', function() {
                 fillDeliveryPhone(linerDeliverySelect, linerDeliveryPhoneInput);
             });
             if (linerDeliverySelect.value && linerDeliveryPhoneInput && !linerDeliveryPhoneInput.value) {
@@ -1827,7 +1842,7 @@
         }
 
         if (duplexDeliverySelect) {
-            duplexDeliverySelect.addEventListener('change', function() {
+            jQuery(duplexDeliverySelect).on('change', function() {
                 fillDeliveryPhone(duplexDeliverySelect, duplexDeliveryPhoneInput);
             });
             if (duplexDeliverySelect.value && duplexDeliveryPhoneInput && !duplexDeliveryPhoneInput.value) {
@@ -1836,7 +1851,7 @@
         }
 
         if (printDeliverySelect) {
-            printDeliverySelect.addEventListener('change', function() {
+            jQuery(printDeliverySelect).on('change', function() {
                 fillDeliveryPhone(printDeliverySelect, printDeliveryPhoneInput);
             });
             if (printDeliverySelect.value && printDeliveryPhoneInput && !printDeliveryPhoneInput.value) {
@@ -1845,7 +1860,7 @@
         }
 
         if (laminasDeliverySelect) {
-            laminasDeliverySelect.addEventListener('change', function() {
+            jQuery(laminasDeliverySelect).on('change', function() {
                 fillDeliveryPhone(laminasDeliverySelect, laminasDeliveryPhoneInput);
             });
             if (laminasDeliverySelect.value && laminasDeliveryPhoneInput && !laminasDeliveryPhoneInput.value) {
