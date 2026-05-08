@@ -1,11 +1,11 @@
-<?php 
-    $pageTitle = "Dashboard";
-    $currentPage = "dashboard";
-    $headerTitle = "Dashboard Overview";
-    
-    // Extra content for head and footer
-    $extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
-    $extraFooter = '
+<?php
+$pageTitle = "Dashboard";
+$currentPage = "dashboard";
+$headerTitle = "Dashboard Overview";
+
+// Extra content for head and footer
+$extraHead = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
+$extraFooter = '
     <script>
         window.addEventListener("load", function() {
             const revCanvas = document.getElementById("revenueChart");
@@ -58,7 +58,7 @@
         });
     </script>';
 
-    include 'include/header.php';
+include 'include/header.php';
 ?>
 
 <!-- Stats Cards -->

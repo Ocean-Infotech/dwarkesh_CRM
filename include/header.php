@@ -22,6 +22,8 @@ if (!isset($_SESSION['aid'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Toastr CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <?php if (isset($extraHead))
         echo $extraHead; ?>
 </head>
@@ -59,6 +61,16 @@ if (!isset($_SESSION['aid'])) {
                 </li>
                 <li class="<?php echo ($currentPage == 'orders') ? 'active' : ''; ?>">
                     <a href="orders.php"><i class="bi bi-cart-check"></i> Orders</a>
+                </li>
+                <li class="<?php echo ($currentPage == 'jobsheet') ? 'active' : ''; ?>">
+                    <a href="jobsheet.php"><i class="bi bi-file-earmark-text"></i> Job Sheet</a>
+                </li>
+                <li class="nav-divider mt-3 mb-2 px-3 small text-uppercase text-muted fw-bold">Stock Management</li>
+                <li class="<?php echo ($currentPage == 'product_stock') ? 'active' : ''; ?>">
+                    <a href="product_stock.php"><i class="bi bi-box-seam"></i> Product Stock</a>
+                </li>
+                <li class="<?php echo ($currentPage == 'add_product_stock') ? 'active' : ''; ?>">
+                    <a href="add_product_stock.php"><i class="bi bi-plus-square"></i> Add Stock</a>
                 </li>
             </ul>
         </nav>

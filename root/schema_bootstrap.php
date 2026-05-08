@@ -113,8 +113,27 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
                 PRIMARY KEY (`id`),
                 KEY `order_id` (`order_id`),
                 KEY `material_id` (`material_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+            "CREATE TABLE IF NOT EXISTS `tbl_stock_history` (
+                `id` int(11) NOT NULL AUTO_INCREMENT,
+                `item_type` enum('product','material') NOT NULL,
+                `item_id` int(11) NOT NULL,
+                `qty` decimal(10,2) NOT NULL,
+                `action_type` enum('plus','minus') NOT NULL,
+                `remarks` text,
+                `created_by` int(11) DEFAULT NULL,
+                `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `item_type_id` (`item_type`, `item_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         ];
+
+        // Ensure stock columns exist
+        $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `mapped_material_id` int(11) DEFAULT NULL AFTER `description` ");
+        $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `usage_qty` decimal(10,2) DEFAULT '0.00' AFTER `mapped_material_id` ");
+        $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `usage_qty` ");
+        $ai_db->aiQuery("ALTER TABLE `tbl_materials` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `weight` ");
 
         foreach ($queries as $query) {
             $ai_db->aiQuery($query);

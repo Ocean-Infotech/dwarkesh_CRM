@@ -12,8 +12,12 @@ define('SITE_LOCAL_URL', 'http://localhost/dwarkesh_CRM/');
 define('SITE_NAME', 'Dwarkesh Matrimony');
 define('SITE_LIVE_URL', 'https://newdwarkesh.oceanhub.co.in/');
 
-// site running in live server or locaL
-define('SITE_MODE', '1');
+// site running in live server or local
+if (!isset($_SERVER['HTTP_HOST']) || strpos($_SERVER['HTTP_HOST'], 'localhost') !== false || $_SERVER['HTTP_HOST'] == '127.0.0.1') {
+    define('SITE_MODE', '0');
+} else {
+    define('SITE_MODE', '1');
+}
 define('DB_PREFIX', 'tbl_');
 
 
