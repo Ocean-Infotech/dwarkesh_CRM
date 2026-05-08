@@ -374,6 +374,9 @@ if (isset($_POST['btn_submit'])) {
             $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
             $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Placed: #$order_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
 
+            // Update BOM Material Stock
+            $update_bom_stock($product_id, $box_qty, 'minus', "Order Placed: #$order_no");
+
             $ai_core->aiGoPage($redirection_url . "?msg=1");
             exit;
         } elseif ($mode === 'edit') {
@@ -394,14 +397,20 @@ if (isset($_POST['btn_submit'])) {
                     $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty $op $abs_diff WHERE id = $product_id");
                     $action = ($diff > 0) ? 'minus' : 'plus';
                     $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$abs_diff', action_type='$action', remarks='Order Edited: #$order_no (Qty Changed)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
+                    // Update BOM Material Stock
+                    $update_bom_stock($product_id, $abs_diff, $action, "Order Edited: #$order_no (Qty Changed)");
                 }
             } else {
                 // Add back to old product
                 $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $old_box_qty WHERE id = $old_product_id");
                 $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$old_product_id', qty='$old_box_qty', action_type='plus', remarks='Order Product Changed: #$order_no (Old Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                $update_bom_stock($old_product_id, $old_box_qty, 'plus', "Order Product Changed: #$order_no (Old Product Revert)");
+
                 // Deduct from new product
                 $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
                 $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Product Changed: #$order_no (New Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                $update_bom_stock($product_id, $box_qty, 'minus', "Order Product Changed: #$order_no (New Product Deduction)");
             }
 
             $ai_core->aiGoPage($redirection_url . "?msg=2");
@@ -424,6 +433,9 @@ if ($mode === 'delete' && $id > 0) {
 
         $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $b_qty WHERE id = $p_id");
         $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$p_id', qty='$b_qty', action_type='plus', remarks='Order Deleted: #$o_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
+        // Revert BOM Material Stock
+        $update_bom_stock($p_id, $b_qty, 'plus', "Order Deleted: #$o_no");
     }
     $ai_db->aiQuery("UPDATE $table SET is_deleted=1 WHERE id='$id'");
     $ai_core->aiGoPage($redirection_url . "?msg=3");
