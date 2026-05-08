@@ -25,6 +25,7 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
                 `sheet_unit` varchar(25) DEFAULT 'inch',
                 `liner_items` longtext,
                 `liner_rate` decimal(10,2) DEFAULT NULL,
+                `duplex_items` longtext,
                 `duplex_material_id` int(11) DEFAULT NULL,
                 `duplex_name` varchar(255) DEFAULT NULL,
                 `duplex_input_rate` decimal(10,2) DEFAULT NULL,
@@ -118,6 +119,12 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
 
         foreach ($queries as $query) {
             $ai_db->aiQuery($query);
+        }
+
+        // Ensure new columns exist for existing tables
+        $columns = $ai_db->aiGetQuery("SHOW COLUMNS FROM `tbl_costings` LIKE 'duplex_items'");
+        if (empty($columns)) {
+            $ai_db->aiQuery("ALTER TABLE `tbl_costings` ADD `duplex_items` longtext AFTER `liner_rate` ");
         }
 
         $schema_ready = true;
