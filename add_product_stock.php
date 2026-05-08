@@ -24,6 +24,16 @@ if (isset($_POST['btn_submit'])) {
         $error = "All fields are required and quantity must be greater than zero.";
     }
 
+    // Check for negative stock if action is 'minus'
+    if (empty($error) && $action_type == 'minus') {
+        $main_table = ($item_type == 'product') ? 'tbl_product' : 'tbl_materials';
+        $current_data = $ai_db->aiGetQuery("SELECT stock_qty FROM $main_table WHERE id = $item_id");
+        $current_stock = floatval($current_data[0]['stock_qty'] ?? 0);
+        if ($qty > $current_stock) {
+            $error = "Insufficient stock. Only " . number_format($current_stock, 2) . " " . ($item_type == 'product' ? 'PCS' : 'KG') . " available.";
+        }
+    }
+
     if (empty($error)) {
         // Start Transaction (if supported, otherwise manual updates)
         $ai_db->aiQuery("INSERT INTO $table SET 
@@ -38,7 +48,11 @@ if (isset($_POST['btn_submit'])) {
         $main_table = ($item_type == 'product') ? 'tbl_product' : 'tbl_materials';
         $operator = ($action_type == 'plus') ? '+' : '-';
 
-        $ai_db->aiQuery("UPDATE $main_table SET stock_qty = stock_qty $operator $qty WHERE id = $item_id");
+        $ai_db->aiQuery("UPDATE $main_table SET 
+            stock_qty = stock_qty $operator $qty,
+            updated_at = NOW(),
+            updated_by = '" . $_SESSION['aid'] . "' 
+            WHERE id = $item_id");
 
         $ai_core->aiGoPage($redirection_url . "?msg=1");
         exit;
