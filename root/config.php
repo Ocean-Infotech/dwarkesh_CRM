@@ -10,10 +10,10 @@ error_reporting(E_ALL);
 define('APP_NAME', 'Dwarkesh ');
 define('SITE_LOCAL_URL', 'http://localhost/dwarkesh_CRM/');
 define('SITE_NAME', 'Dwarkesh Matrimony');
-define('SITE_LIVE_URL', 'https://oceaninfotechcrm.com/');
+define('SITE_LIVE_URL', 'https://newdwarkesh.oceanhub.co.in/');
 
 // site running in live server or locaL
-define('SITE_MODE', '0');
+define('SITE_MODE', '1');
 define('DB_PREFIX', 'tbl_');
 
 
@@ -31,9 +31,9 @@ if (SITE_MODE == 0) {
     define('ADMIN_URL', SITE_LIVE_URL . 'admin/');
     // db configuration
     define('DB_HOST', 'localhost');
-    define('DB_USER', 'jrosvllq_oceancrm_website');
-    define('DB_PASS', '!(?2[G!y9IqRu5Qb');
-    define('DB_DATABASE', 'jrosvllq_oceancrm_website');
+    define('DB_USER', 'jrosvllq_dwarkes_packaging');
+    define('DB_PASS', '&i!aU)8?jaaS82W1');
+    define('DB_DATABASE', 'jrosvllq_dwarkes_packaging');
 }
 
 require_once('define.php');
