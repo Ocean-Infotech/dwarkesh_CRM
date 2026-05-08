@@ -262,3 +262,19 @@ if ($_POST['action'] == 'check-password') {
         echo 'success';
     }
 }
+
+if ($_POST['action'] == 'get_costing_data') {
+    header('Content-Type: application/json');
+    $costing_id = intval($_POST['costing_id'] ?? 0);
+    if ($costing_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid costing ID']);
+        exit;
+    }
+    $costing = $ai_db->aiGetQuery("SELECT * FROM tbl_costings WHERE id = $costing_id AND is_deleted = 0");
+    if (empty($costing)) {
+        echo json_encode(['success' => false, 'message' => 'Costing not found']);
+        exit;
+    }
+    echo json_encode(['success' => true, 'data' => $costing[0]]);
+    exit;
+}
