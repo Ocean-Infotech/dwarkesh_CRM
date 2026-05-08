@@ -114,8 +114,9 @@ if (!isset($_SESSION['aid'])) {
                                     <div class="fw-bold">Admin</div>
                                     <div class="small text-muted">Super Admin</div>
                                 </li>
-                                <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i> Profile</a></li>
-                                <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li>
+                                <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>
+                                        Profile</a></li>
+                                <!-- <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li> -->
                                 <li>
                                     <hr class="dropdown-divider">
                                 </li>

@@ -255,12 +255,29 @@ if ($_POST['action'] == 'login') {
 if ($_POST['action'] == 'check-password') {
     $OldPassword = md5($_POST['old_pass']);
     $qry = "SELECT * FROM " . DB_PREFIX . "admin WHERE password='" . $OldPassword . "' AND id=" . $_SESSION['aid'];
-    $result = $ai_db->aiGetQueryObj($qry);
+    $result = $ai_db->aiGetQuery($qry);
     if (empty($result)) {
         echo 'fail';
     } else {
         echo 'success';
     }
+    exit;
+}
+
+if ($_POST['action'] == 'update-password') {
+    header('Content-Type: application/json');
+    $old_pass = md5($_POST['old_password'] ?? '');
+    $new_pass = md5($_POST['new_password'] ?? '');
+    
+    $check = $ai_db->aiGetQuery("SELECT id FROM " . DB_PREFIX . "admin WHERE id=" . $_SESSION['aid'] . " AND password='$old_pass'");
+    if (empty($check)) {
+        echo json_encode(['success' => false, 'message' => 'Current password is incorrect.']);
+        exit;
+    }
+    
+    $ai_db->aiQuery("UPDATE " . DB_PREFIX . "admin SET password='$new_pass' WHERE id=" . $_SESSION['aid']);
+    echo json_encode(['success' => true, 'message' => 'Password updated successfully!']);
+    exit;
 }
 
 if ($_POST['action'] == 'get_costing_data') {

@@ -35,31 +35,36 @@ $totalProducts = intval($productStats[0]['total_count'] ?? 0);
 // Recent 10 Orders (Global or Filtered? Let's keep it global or last 10 for the filtered month)
 $recentOrders = $ai_db->aiGetQuery("SELECT * FROM tbl_orders WHERE is_deleted=0 $whereFilter ORDER BY id DESC LIMIT 10");
 
-// Fetch Revenue Data for 6 Months leading up to the SELECTED month
-$selectedDate = "$filterYear-$filterMonth-01";
-$monthlyRevenue = $ai_db->aiGetQuery("
+// Fetch DAILY Revenue Data for the SELECTED month
+$daysInMonth = cal_days_in_month(CAL_GREGORIAN, $filterMonth, $filterYear);
+$dailyRevenue = $ai_db->aiGetQuery("
     SELECT 
-        DATE_FORMAT(order_date, '%b %y') as month_name, 
+        DAY(order_date) as order_day, 
         SUM(rate * box_qty) as total_rev 
     FROM tbl_orders 
     WHERE is_deleted = 0 
-    AND order_date <= LAST_DAY('$selectedDate')
-    AND order_date >= DATE_SUB('$selectedDate', INTERVAL 5 MONTH)
-    GROUP BY YEAR(order_date), MONTH(order_date)
-    ORDER BY YEAR(order_date) ASC, MONTH(order_date) ASC
+    AND MONTH(order_date) = $filterMonth 
+    AND YEAR(order_date) = $filterYear
+    GROUP BY DAY(order_date)
+    ORDER BY DAY(order_date) ASC
 ");
+
+$revenueMap = [];
+foreach ($dailyRevenue as $row) {
+    $revenueMap[intval($row['order_day'])] = floatval($row['total_rev']);
+}
 
 $revLabels = [];
 $revData = [];
-foreach ($monthlyRevenue as $row) {
-    $revLabels[] = $row['month_name'];
-    $revData[] = floatval($row['total_rev']);
+for ($d = 1; $d <= $daysInMonth; $d++) {
+    $revLabels[] = "Day " . $d;
+    $revData[] = $revenueMap[$d] ?? 0;
 }
 
 $extraFooter = '
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // Revenue Chart
+        // Revenue Chart (Creative Bar + Line hybrid look)
         const revCtx = document.getElementById("revenueChart").getContext("2d");
         const revDataPoints = ' . json_encode($revData) . ';
         
@@ -70,34 +75,37 @@ $extraFooter = '
                 <div class="fw-bold opacity-50 small">No revenue trend available for this period</div>
             </div>`;
         } else {
-            const revGradient = revCtx.createLinearGradient(0, 0, 0, 400);
-            revGradient.addColorStop(0, "rgba(197, 160, 89, 0.4)");
-            revGradient.addColorStop(1, "rgba(197, 160, 89, 0.0)");
+            const barGradient = revCtx.createLinearGradient(0, 0, 0, 400);
+            barGradient.addColorStop(0, "rgba(197, 160, 89, 0.85)");
+            barGradient.addColorStop(1, "rgba(197, 160, 89, 0.1)");
 
             new Chart(revCtx, {
-                type: "line",
+                type: "bar",
                 data: {
                     labels: ' . json_encode($revLabels) . ',
                     datasets: [{
-                        label: "Monthly Revenue",
+                        label: "Daily Revenue",
                         data: revDataPoints,
-                        borderColor: "#c5a059",
-                        backgroundColor: revGradient,
-                        borderWidth: 4,
-                        pointBackgroundColor: "#fff",
-                        pointBorderColor: "#c5a059",
-                        pointBorderWidth: 3,
-                        pointRadius: 6,
-                        pointHoverRadius: 9,
-                        pointHoverBackgroundColor: "#c5a059",
-                        pointHoverBorderColor: "#fff",
-                        tension: 0.45,
-                        fill: true
+                        backgroundColor: barGradient,
+                        borderRadius: 8,
+                        hoverBackgroundColor: "#c5a059",
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.8,
+                    }, {
+                        label: "Trend Line",
+                        data: revDataPoints,
+                        type: "line",
+                        borderColor: "rgba(30, 41, 59, 0.15)",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: false
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
                     plugins: { 
                         legend: { display: false },
                         tooltip: {
@@ -108,6 +116,7 @@ $extraFooter = '
                             displayColors: false,
                             callbacks: {
                                 label: function(context) {
+                                    if(context.datasetIndex === 1) return null;
                                     return "Revenue: " + new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(context.parsed.y);
                                 }
                             }
@@ -116,7 +125,8 @@ $extraFooter = '
                     scales: {
                         y: { 
                             beginAtZero: true,
-                            grid: { color: "rgba(0,0,0,0.04)", drawBorder: false },
+                            min: 0,
+                            grid: { color: "rgba(0,0,0,0.03)", drawBorder: false },
                             ticks: { 
                                 font: { family: "Inter", size: 11 },
                                 callback: function(value) {
@@ -125,50 +135,62 @@ $extraFooter = '
                                 }
                             }
                         },
-                        x: { grid: { display: false } }
+                        x: { 
+                            grid: { display: false },
+                            ticks: {
+                                font: { family: "Inter", size: 10, weight: "600" },
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 15,
+                                callback: function(val, index) {
+                                    return (index + 1);
+                                }
+                            }
+                        }
                     }
                 }
             });
         }
 
-        // Distribution Chart (Polar Area for Creative look)
+        // Distribution Chart (Premium Doughnut)
         const distCtx = document.getElementById("distChart").getContext("2d");
         const distData = [' . $totalOrderAmount . ', ' . $totalCostingAmount . '];
         
         if (distData[0] === 0 && distData[1] === 0) {
-            // Show No Data message for Distribution
             const container = distCtx.canvas.parentNode;
             container.innerHTML += `<div class="no-data-overlay">
                 <i class="bi bi-pie-chart d-block mb-2 fs-2 opacity-25"></i>
                 <div class="fw-bold opacity-50 small">No distribution data for this month</div>
             </div>`;
         } else {
+            const g1 = distCtx.createLinearGradient(0, 0, 0, 300);
+            g1.addColorStop(0, "#c5a059");
+            g1.addColorStop(1, "#f2d399");
+
+            const g2 = distCtx.createLinearGradient(0, 0, 0, 300);
+            g2.addColorStop(0, "#1e293b");
+            g2.addColorStop(1, "#475569");
+
             new Chart(distCtx, {
-                type: "polarArea",
+                type: "doughnut",
                 data: {
                     labels: ["Orders Value", "Costings Value"],
                     datasets: [{
                         data: distData,
-                        backgroundColor: [
-                            "rgba(197, 160, 89, 0.7)",
-                            "rgba(30, 41, 59, 0.7)"
-                        ],
-                        borderColor: ["#c5a059", "#1e293b"],
-                        borderWidth: 2
+                        backgroundColor: [g1, g2],
+                        hoverBackgroundColor: ["#dcc28c", "#64748b"],
+                        borderWidth: 0,
+                        hoverOffset: 15,
+                        borderRadius: 20,
+                        spacing: 10
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            grid: { color: "rgba(0,0,0,0.05)" },
-                            angleLines: { color: "rgba(0,0,0,0.05)" },
-                            ticks: { display: false }
-                        }
-                    },
+                    cutout: "80%",
                     plugins: {
-                        legend: { position: "bottom", labels: { padding: 20, usePointStyle: true, font: { family: "Inter", weight: "600" } } },
+                        legend: { position: "bottom", labels: { padding: 30, usePointStyle: true, font: { family: "Inter", weight: "700" } } },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
@@ -293,19 +315,11 @@ $extraFooter = '
     <div class="row g-4 mb-5">
         <div class="col-lg-8">
             <div class="chart-card shadow-sm">
-                <div
-                    class="card-header bg-transparent border-0 p-4 pb-0 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="fw-bold m-0">Sales Revenue Analysis</h6>
-                        <p class="text-muted small m-0">Performance trend and financial growth</p>
-                    </div>
-                    <div class="chart-filter">
-                        <select class="form-select form-select-sm rounded-pill px-3 border-0 shadow-sm"
-                            style="background-color: rgba(197, 160, 89, 0.1); color: var(--primary-gold); font-weight: 700;">
-                            <option value="monthly">Monthly View</option>
-                            <option value="yearly">Yearly View</option>
-                        </select>
-                    </div>
+                <div class="card-header bg-transparent border-0 p-4 pb-0">
+                    <h6 class="fw-bold m-0 text-dark">Revenue Trend:
+                        <?= date('F Y', mktime(0, 0, 0, $filterMonth, 1, $filterYear)) ?>
+                    </h6>
+                    <p class="text-muted small m-0">Daily sales performance and revenue growth</p>
                 </div>
                 <div class="card-body p-4">
                     <div style="height: 350px;">
@@ -317,8 +331,8 @@ $extraFooter = '
         <div class="col-lg-4">
             <div class="chart-card shadow-sm">
                 <div class="card-header bg-transparent border-0 p-4 pb-0">
-                    <h6 class="fw-bold m-0">Order Distribution (Value)</h6>
-                    <p class="text-muted small m-0">Financial value of Orders vs Costings</p>
+                    <h6 class="fw-bold m-0 text-dark">Financial Distribution</h6>
+                    <p class="text-muted small m-0">Orders vs Costings value ratio</p>
                 </div>
                 <div class="card-body p-4">
                     <div style="height: 350px; position: relative;">
