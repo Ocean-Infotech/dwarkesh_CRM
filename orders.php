@@ -269,44 +269,17 @@
             box-shadow: 0 8px 20px rgba(197, 160, 89, 0.4);
         }
 
-        .order-action-stack {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
+        .table-action-btn.print {
+            color: #27ae60;
+            border-color: rgba(39, 174, 96, 0.35);
+            background: rgba(39, 174, 96, 0.06);
         }
 
-        .order-extra-icons {
-            display: flex;
-            gap: 6px;
-            justify-content: center;
-        }
-
-        .order-extra-icon {
-            width: 30px;
-            height: 30px;
-            border-radius: 6px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+        .table-action-btn.print:hover {
             color: #fff;
-            font-size: 14px;
-            line-height: 1;
-            pointer-events: none;
-            user-select: none;
-        }
-
-        .order-extra-icon-print-one {
-            background: #2d9cdb;
-        }
-
-        .order-extra-icon-print-two {
             background: #27ae60;
-        }
-
-        .order-extra-icon-refresh {
-            background: #f2c94c;
-            color: #1f2937;
+            border-color: #27ae60;
+            box-shadow: 0 10px 18px rgba(39, 174, 96, 0.24);
         }
 
     </style>';
@@ -1290,20 +1263,16 @@
                                         <td><?= htmlspecialchars($row['die_status'] ?? '-') ?></td>
                                         <td><?= !empty($row['md_code']) ? htmlspecialchars($row['md_code']) : '<span class="text-muted">-</span>' ?></td> -->
                                         <td class="text-center">
-                                            <div class="order-action-stack">
-                                                <div class="table-action-group">
-                                                    <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="table-action-btn edit" title="Edit">
-                                                        <i class="bi bi-pencil-square"></i>
-                                                    </a>
-                                                    <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="table-action-btn delete" title="Delete" onclick="return confirm('Are you sure you want to delete this order?')">
-                                                        <i class="bi bi-trash"></i>
-                                                    </a>
-                                                </div>
-                                                <div class="order-extra-icons" aria-hidden="true">
-                                                    <span class="order-extra-icon order-extra-icon-print-one" title="Print"><i class="bi bi-printer-fill"></i></span>
-                                                    <span class="order-extra-icon order-extra-icon-print-two" title="Print"><i class="bi bi-printer-fill"></i></span>
-                                                    <span class="order-extra-icon order-extra-icon-refresh" title="Refresh"><i class="bi bi-arrow-repeat"></i></span>
-                                                </div>
+                                            <div class="table-action-group">
+                                                <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="table-action-btn edit" title="Edit">
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </a>
+                                                <a href="print_order.php?id=<?= $row['id'] ?>&print=1" target="_blank" class="table-action-btn print" title="Print">
+                                                    <i class="bi bi-printer-fill"></i>
+                                                </a>
+                                                <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="table-action-btn delete" title="Delete" onclick="return confirm('Are you sure you want to delete this order?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
@@ -1529,6 +1498,16 @@
         const materialQuickAddModal = document.getElementById('orderMaterialQuickAddModal');
         const orderForm = document.getElementById('order_form');
         const linerMaterialSelect = document.getElementById('liner_material_id');
+        
+        // Master list of all costing options for robust filtering
+        let allCostingOptions = [];
+        if (costingSelect) {
+            allCostingOptions = Array.from(costingSelect.options).map(opt => ({
+                value: opt.value,
+                text: opt.textContent,
+                customer: opt.dataset.customer
+            }));
+        }
         const duplexMaterialSelect = document.getElementById('duplex_material_id');
         const materialContextField = document.getElementById('order_material_context');
         const materialTypeField = document.getElementById('order_material_type_id');
@@ -1584,11 +1563,34 @@
 
         function filterCostingsByCustomer(custId) {
             if (!costingSelect) return;
-            Array.from(costingSelect.options).forEach(opt => {
+            
+            const currentVal = costingSelect.value;
+            const selectedOpt = costingSelect.options[costingSelect.selectedIndex];
+            
+            // Rebuild options based on customer
+            costingSelect.innerHTML = '<option value="">Select Costing</option>';
+            
+            let valIsValid = false;
+            allCostingOptions.forEach(opt => {
                 if (opt.value === "") return;
-                if (opt.dataset.customer == custId || custId === "") opt.style.display = "";
-                else opt.style.display = "none";
+                
+                if (opt.customer == custId || custId === "") {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = opt.value;
+                    newOpt.textContent = opt.text;
+                    newOpt.dataset.customer = opt.customer;
+                    
+                    if (String(opt.value) === String(currentVal)) {
+                        newOpt.selected = true;
+                        valIsValid = true;
+                    }
+                    costingSelect.appendChild(newOpt);
+                }
             });
+
+            if (!valIsValid) {
+                costingSelect.value = "";
+            }
 
             if (typeof window.refreshSelect2Dropdown === 'function') {
                 window.refreshSelect2Dropdown(costingSelect);
@@ -1781,6 +1783,92 @@
                 const custId = this.value;
                 updateBrands(custId);
                 filterCostingsByCustomer(custId);
+            });
+        }
+
+        if (costingSelect) {
+            jQuery(costingSelect).on('change', function() {
+                const costingId = this.value;
+                if (!costingId) return;
+
+                // Show a small loader if possible
+                toggleSubmitButton(document.querySelector('button[name="btn_submit"]'), true, 'Fetching Costing...');
+
+                const formData = new FormData();
+                formData.append('action', 'get_costing_data');
+                formData.append('costing_id', costingId);
+
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(res => {
+                    if (res.success) {
+                        const data = res.data;
+                        
+                        // Fill Product
+                        if (productSelect && data.product_id) {
+                            productSelect.value = data.product_id;
+                            if (typeof window.refreshSelect2Dropdown === 'function') window.refreshSelect2Dropdown(productSelect);
+                        }
+                        
+                        // Fill Brand (Refresh Brands list for the customer and select the one from costing)
+                        if (brandSelect && data.brand_name) {
+                            updateBrands(data.customer_id, data.brand_name);
+                        }
+                        
+                        // Fill Main Details
+                        const mainFields = {
+                            'rate': data.sale_rate,
+                            'sheet_length': data.sheet_length,
+                            'sheet_width': data.sheet_width,
+                            'upps': data.upps || '1',
+                            'printing': data.printing,
+                            'laminas_value': data.laminas_value,
+                            'pesting': data.pesting,
+                            'punching': data.punching,
+                            'pin_rate': data.pin_rate,
+                            'pin_qty': data.pin_qty,
+                            'side_pesting': data.side_pesting,
+                            'uv_coating': data.uv_coating,
+                            'rixa_bhadu': data.rixa_bhadu,
+                            'bill_remark': data.remark
+                        };
+
+                        for (const [name, val] of Object.entries(mainFields)) {
+                            const el = document.getElementsByName(name)[0];
+                            if (el) {
+                                el.value = val || (name === 'upps' ? '1' : '');
+                                // Trigger input event to satisfy any other listeners
+                                el.dispatchEvent(new Event('input'));
+                            }
+                        }
+
+                        // Fill Items
+                        try {
+                            linerItems = JSON.parse(data.liner_items || '[]');
+                            duplexItems = JSON.parse(data.duplex_items || '[]');
+                            renderLinerItems();
+                            renderDuplexItems();
+                        } catch(e) { 
+                            console.error("Error parsing costing items:", e);
+                        }
+
+                        if (typeof showToast === 'function') {
+                            showToast('Costing Loaded', 'All details have been fetched from the selected costing.', 'success');
+                        }
+                    } else {
+                        handleAjaxError(res.message);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    handleAjaxError('Failed to fetch costing data.');
+                })
+                .finally(() => {
+                    toggleSubmitButton(document.querySelector('button[name="btn_submit"]'), false);
+                });
             });
         }
 
