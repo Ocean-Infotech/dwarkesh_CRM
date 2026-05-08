@@ -621,10 +621,10 @@
         $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE $where_clause ORDER BY estimate_date DESC, id DESC LIMIT $limit OFFSET $offset");
     }
 
-    $estimateDateValue = $data['estimate_date'] ?? date('Y-m-d');
-    $estimateNoValue = $data['estimate_no'] ?? costing_generate_estimate_no($ai_db, $estimateDateValue, $id);
+    $estimateDateValue = (is_array($data) && isset($data['estimate_date'])) ? $data['estimate_date'] : date('Y-m-d');
+    $estimateNoValue = (is_array($data) && isset($data['estimate_no'])) ? $data['estimate_no'] : costing_generate_estimate_no($ai_db, $estimateDateValue, $id);
     $brandOptions = [];
-    $selectedCustomerId = intval($data['customer_id'] ?? 0);
+    $selectedCustomerId = (is_array($data) && isset($data['customer_id'])) ? intval($data['customer_id']) : 0;
     if ($selectedCustomerId > 0 && isset($customerBrandsMap[$selectedCustomerId])) {
         $brandOptions = $customerBrandsMap[$selectedCustomerId];
     }
