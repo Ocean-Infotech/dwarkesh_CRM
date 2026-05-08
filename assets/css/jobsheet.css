@@ -1,10 +1,10 @@
 .report-card {
     background: var(--card-bg);
-    border-top: 4px solid var(--primary-gold);
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
-    padding: 25px;
+    border-top: 5px solid var(--primary-gold);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+    padding: 30px;
     margin-bottom: 30px;
-    border-radius: 16px;
+    border-radius: 20px;
     transition: all 0.3s ease;
 }
 
@@ -14,13 +14,12 @@
 
 .filter-label {
     font-weight: 700;
-    font-size: 0.75rem;
-    color: var(--text-dark);
-    opacity: 0.8;
-    margin-bottom: 10px;
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-bottom: 8px;
     display: block;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
 }
 .report-result-container {
     min-height: 250px;

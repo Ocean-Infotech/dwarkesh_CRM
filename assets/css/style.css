@@ -150,6 +150,90 @@ body {
     border: none;
 }
 
+/* Header Action Styles */
+.btn-icon-only {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: #64748b;
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.btn-icon-only:hover {
+    background: rgba(197, 160, 89, 0.1);
+    color: var(--primary-gold);
+    border-color: rgba(197, 160, 89, 0.2);
+}
+
+[data-bs-theme="dark"] .btn-icon-only {
+    color: #94a3b8;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
+.header-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="dark"] .header-divider {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-dropdown-toggle {
+    text-decoration: none;
+    color: inherit;
+    padding: 4px 8px;
+    border-radius: 12px;
+    transition: background-color 0.2s;
+}
+
+.profile-dropdown-toggle:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+[data-bs-theme="dark"] .profile-dropdown-toggle:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.avatar-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.online-status {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    background: #10b981;
+    border: 2px solid #fff;
+    border-radius: 50%;
+}
+
+.profile-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-dark);
+}
+
+.profile-role {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+[data-bs-theme="dark"] .profile-role {
+    color: #94a3b8;
+}
+
 /* Cards */
 .card {
     border: 1px solid rgba(0, 0, 0, 0.05);

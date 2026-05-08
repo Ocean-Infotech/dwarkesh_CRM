@@ -86,19 +86,34 @@ if (!isset($_SESSION['aid'])) {
 
                     <h5 class="m-0 fw-bold d-none d-md-block"><?php echo $headerTitle; ?></h5>
 
-                    <div class="ms-auto d-flex align-items-center">
-                        <button id="themeToggle" class="btn btn-outline-secondary btn-sm rounded-circle me-3">
-                            <i class="bi bi-moon-fill"></i>
-                        </button>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <div class="theme-switch-wrapper me-2">
+                            <button id="themeToggle" class="btn btn-icon-only rounded-circle" title="Toggle Theme">
+                                <i class="bi bi-moon-stars-fill"></i>
+                            </button>
+                        </div>
+
+                        <div class="header-divider me-2"></div>
 
                         <div class="dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button"
-                                data-bs-toggle="dropdown">
-                                <img src="https://ui-avatars.com/api/?name=Admin+User&background=c5a059&color=fff"
-                                    class="rounded-circle me-2" width="35" height="35">
-                                <span class="fw-semibold">Admin</span>
+                            <a class="profile-dropdown-toggle d-flex align-items-center" href="#" role="button"
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="avatar-wrapper">
+                                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=c5a059&color=fff"
+                                        class="rounded-circle shadow-sm" width="38" height="38">
+                                    <span class="online-status"></span>
+                                </div>
+                                <div class="d-none d-lg-block ms-2 text-start">
+                                    <div class="profile-name">Admin</div>
+                                    <div class="profile-role">Super Admin</div>
+                                </div>
+                                <i class="bi bi-chevron-down ms-2 small opacity-50"></i>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+                                <li class="px-3 py-2 border-bottom mb-2 d-lg-none">
+                                    <div class="fw-bold">Admin</div>
+                                    <div class="small text-muted">Super Admin</div>
+                                </li>
                                 <li><a class="dropdown-item" href="#"><i class="bi bi-person me-2"></i> Profile</a></li>
                                 <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li>
                                 <li>

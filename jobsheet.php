@@ -21,7 +21,7 @@ $orders = $ai_db->aiGetQuery("SELECT id, order_no, customer_name, brand_name FRO
                         <option value="">Select Orders</option>
                         <?php foreach ($orders as $order) { ?>
                             <option value="<?= $order['id'] ?>">
-                                #<?= htmlspecialchars($order['order_no']) ?> - <?= htmlspecialchars($order['customer_name']) ?>
+                                #<?= htmlspecialchars($order['order_no']) ?>
                             </option>
                         <?php } ?>
                     </select>
