@@ -41,8 +41,8 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                             <thead class="table-light">
                                 <tr>
                                     <th>Product Name</th>
-                                    <th>Mapped Material</th>
-                                    <th class="text-center">Usage/Unit</th>
+                                    <!-- <th>Mapped Material</th>
+                                    <th class="text-center">Usage/Unit</th> -->
                                     <th class="text-end">Current Stock</th>
                                 </tr>
                             </thead>
@@ -52,9 +52,10 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                                         <td>
                                             <div class="fw-bold"><?= htmlspecialchars($p['name']) ?></div>
                                             <div class="small text-muted">HSN:
-                                                <?= htmlspecialchars($p['hsn_code'] ?: '-') ?></div>
+                                                <?= htmlspecialchars($p['hsn_code'] ?: '-') ?>
+                                            </div>
                                         </td>
-                                        <td><?= htmlspecialchars($p['material_name'] ?: 'Not Mapped') ?></td>
+                                        <!-- <td><?= htmlspecialchars($p['material_name'] ?: 'Not Mapped') ?></td>
                                         <td class="text-center">
                                             <?php if ($p['usage_qty'] > 0) { ?>
                                                 <span class="badge bg-light text-dark"><?= number_format($p['usage_qty'], 3) ?>
@@ -62,7 +63,7 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                                             <?php } else { ?>
                                                 <span class="text-muted">-</span>
                                             <?php } ?>
-                                        </td>
+                                        </td> -->
                                         <td class="text-end">
                                             <span
                                                 class="fs-5 fw-900 <?= ($p['stock_qty'] <= 5 ? 'text-danger' : 'text-success') ?>">

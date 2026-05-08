@@ -46,8 +46,8 @@ if (isset($_POST['btn_submit'])) {
 }
 
 // Fetch Items for Dropdown
-$products = $ai_db->aiGetQuery("SELECT id, name FROM tbl_product WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
-$materials = $ai_db->aiGetQuery("SELECT id, name FROM tbl_materials WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, name, stock_qty FROM tbl_product WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
+$materials = $ai_db->aiGetQuery("SELECT id, name, stock_qty FROM tbl_materials WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
 
 // Fetch History
 $limit = 20;
@@ -78,30 +78,48 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
                 <form class="card-body" method="POST">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Stock Type</label>
-                        <select name="item_type" id="item_type" class="form-select" required>
-                            <option value="product">Product (PCS)</option>
-                            <option value="material">Material (KG)</option>
+                        <select name="item_type" id="item_type" class="form-select" required data-searchable="false">
+                            <option value="product" selected>Product</option>
+                            <option value="material">Materials</option>
                         </select>
                     </div>
 
                     <div class="mb-3" id="product_selector">
                         <label class="form-label fw-bold">Select Product</label>
-                        <select name="item_id" class="form-select select2">
+                        <select id="select_product" class="form-select select2">
                             <option value="">Select Product</option>
                             <?php foreach ($products as $p) { ?>
-                                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
+                                <option value="<?= $p['id'] ?>" data-stock="<?= $p['stock_qty'] ?>">
+                                    <?= htmlspecialchars($p['name']) ?>
+                                </option>
                             <?php } ?>
                         </select>
                     </div>
 
-                    <div class="mb-3 d-none" id="material_selector">
+                    <div class="mb-3" id="material_selector" style="display: none;">
                         <label class="form-label fw-bold">Select Material</label>
-                        <select name="item_id_disabled" class="form-select select2">
+                        <select id="select_material" class="form-select select2">
                             <option value="">Select Material</option>
                             <?php foreach ($materials as $m) { ?>
-                                <option value="<?= $m['id'] ?>"><?= htmlspecialchars($m['name']) ?></option>
+                                <option value="<?= $m['id'] ?>" data-stock="<?= $m['stock_qty'] ?>">
+                                    <?= htmlspecialchars($m['name']) ?>
+                                </option>
                             <?php } ?>
                         </select>
+                    </div>
+
+                    <!-- Hidden input to hold the final item_id -->
+                    <input type="hidden" name="item_id" id="final_item_id" value="" required>
+
+                    <!-- Live Stock Display -->
+                    <div id="current_stock_display" class="mb-3 d-none">
+                        <div class="p-3 rounded-3 bg-light border text-center">
+                            <div class="text-muted small text-uppercase fw-bold mb-1">Available Stock</div>
+                            <div class="h4 mb-0 fw-900 text-primary">
+                                <span id="stock_val">0</span>
+                                <small class="text-muted fs-6" id="stock_unit">PCS</small>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -161,12 +179,17 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
                             <tbody>
                                 <?php if (!empty($history)) {
                                     foreach ($history as $h) { ?>
-                                        <tr>
-                                            <td><?= date('d-m-Y H:i', strtotime($h['created_at'])) ?></td>
-                                            <td><span
-                                                    class="badge bg-secondary rounded-pill"><?= ucfirst($h['item_type']) ?></span>
+                                        <tr class="history-row" data-type="<?= $h['item_type'] ?>">
+                                            <td>
+                                                <?= date('d-m-Y H:i', strtotime($h['created_at'])) ?>
                                             </td>
-                                            <td class="fw-bold"><?= htmlspecialchars($h['item_name']) ?></td>
+                                            <td><span class="badge bg-secondary rounded-pill">
+                                                    <?= ucfirst($h['item_type']) ?>
+                                                </span>
+                                            </td>
+                                            <td class="fw-bold">
+                                                <?= htmlspecialchars($h['item_name']) ?>
+                                            </td>
                                             <td class="text-center">
                                                 <?php if ($h['action_type'] == 'plus') { ?>
                                                     <span class="text-success fw-bold"><i class="bi bi-arrow-up"></i> IN</span>
@@ -176,10 +199,13 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
                                             </td>
                                             <td class="text-end fw-bold">
                                                 <?= number_format($h['qty'], 2) ?>
-                                                <small
-                                                    class="text-muted"><?= ($h['item_type'] == 'product' ? 'PCS' : 'KG') ?></small>
+                                                <small class="text-muted">
+                                                    <?= ($h['item_type'] == 'product' ? 'PCS' : 'KG') ?>
+                                                </small>
                                             </td>
-                                            <td class="small"><?= htmlspecialchars($h['remarks']) ?></td>
+                                            <td class="small">
+                                                <?= htmlspecialchars($h['remarks']) ?>
+                                            </td>
                                         </tr>
                                     <?php }
                                 } else { ?>
@@ -196,7 +222,9 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
                             <ul class="pagination pagination-sm justify-content-center">
                                 <?php for ($i = 1; $i <= $totalPages; $i++) { ?>
                                     <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-                                        <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                                        <a class="page-link" href="?page=<?= $i ?>">
+                                            <?= $i ?>
+                                        </a>
                                     </li>
                                 <?php } ?>
                             </ul>
@@ -208,26 +236,81 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
     </div>
 </div>
 
+<?php
+$extraFooter = '
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const itemType = document.getElementById('item_type');
-        const prodSel = document.getElementById('product_selector');
-        const matSel = document.getElementById('material_selector');
+    $(document).ready(function () {
+        const $itemType = $("#item_type");
+        const $prodSelDiv = $("#product_selector");
+        const $matSelDiv = $("#material_selector");
+        const $selectProd = $("#select_product");
+        const $selectMat = $("#select_material");
+        const $finalId = $("#final_item_id");
+        const $stockDisp = $("#current_stock_display");
+        const $stockVal = $("#stock_val");
+        const $stockUnit = $("#stock_unit");
 
-        itemType.addEventListener('change', function () {
-            if (this.value === 'product') {
-                prodSel.classList.remove('d-none');
-                matSel.classList.add('d-none');
-                prodSel.querySelector('select').setAttribute('name', 'item_id');
-                matSel.querySelector('select').setAttribute('name', 'item_id_disabled');
+        function updateStockDisplay(select) {
+            const $option = $(select).find("option:selected");
+            const stock = $option.data("stock");
+            const type = $itemType.val();
+            const val = $(select).val();
+
+            if (val && stock !== undefined) {
+                $finalId.val(val);
+                $stockVal.text(parseFloat(stock).toFixed(2));
+                $stockUnit.text(type === "product" ? "PCS" : "KG");
+                $stockDisp.removeClass("d-none").hide().fadeIn();
             } else {
-                prodSel.classList.add('d-none');
-                matSel.classList.remove('d-none');
-                prodSel.querySelector('select').setAttribute('name', 'item_id_disabled');
-                matSel.querySelector('select').setAttribute('name', 'item_id');
+                $finalId.val("");
+                $stockDisp.addClass("d-none");
+            }
+        }
+
+        function toggleSelectors() {
+            const type = $itemType.val();
+
+            // Reset state
+            $stockDisp.addClass("d-none");
+            $finalId.val("");
+
+            // Filter History Table
+            $(".history-row").hide();
+            $(`.history-row[data-type="${type}"]`).fadeIn();
+
+            if (type === "product") {
+                $prodSelDiv.show();
+                $matSelDiv.hide();
+                $selectMat.val(null).trigger("change");
+                updateStockDisplay($selectProd);
+            } else {
+                $prodSelDiv.hide();
+                $matSelDiv.show();
+                $selectProd.val(null).trigger("change");
+                updateStockDisplay($selectMat);
+            }
+        }
+
+        $itemType.on("change", function () {
+            toggleSelectors();
+        });
+
+        $selectProd.on("change", function () {
+            if ($itemType.val() === "product") {
+                updateStockDisplay(this);
             }
         });
+
+        $selectMat.on("change", function () {
+            if ($itemType.val() === "material") {
+                updateStockDisplay(this);
+            }
+        });
+
+        // Initial call
+        toggleSelectors();
     });
-</script>
+</script>';
+?>
 
 <?php include 'include/footer.php'; ?>
