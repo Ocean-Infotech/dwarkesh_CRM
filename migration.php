@@ -251,7 +251,70 @@ $queries = [
         PRIMARY KEY (`id`),
         KEY `order_id` (`order_id`),
         KEY `material_id` (`material_id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // 11. Stock History Table (New Module)
+    "CREATE TABLE IF NOT EXISTS `tbl_stock_history` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `item_type` enum('product','material') NOT NULL,
+        `item_id` int(11) NOT NULL,
+        `qty` decimal(10,2) NOT NULL,
+        `action_type` enum('plus','minus') NOT NULL,
+        `remarks` text,
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `item_type_id` (`item_type`, `item_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // --- ALTER TABLE QUERIES FOR MODULE UPDATES ---
+
+    // Sync tbl_product for Inventory Module
+    "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `mapped_material_id` int(11) DEFAULT NULL AFTER `description` ",
+    "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `usage_qty` decimal(10,2) DEFAULT '0.00' AFTER `mapped_material_id` ",
+    "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `usage_qty` ",
+
+    // Sync tbl_materials for Inventory Module
+    "ALTER TABLE `tbl_materials` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `weight` ",
+
+    // Sync tbl_costings
+    "ALTER TABLE `tbl_costings` ADD COLUMN IF NOT EXISTS `duplex_items` longtext AFTER `liner_rate` ",
+
+    // Sync tbl_orders (Advanced Order Module)
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `liner_delivery_id` int(11) DEFAULT NULL AFTER `die_status` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `liner_delivery_phone` varchar(50) DEFAULT NULL AFTER `liner_delivery_id` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `top_count` varchar(100) DEFAULT NULL AFTER `liner_delivery_phone` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `duplex_delivery_id` int(11) DEFAULT NULL AFTER `top_count` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `duplex_delivery_phone` varchar(50) DEFAULT NULL AFTER `duplex_delivery_id` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `printing_by_id` int(11) DEFAULT NULL AFTER `duplex_delivery_phone` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `offset_image` varchar(255) DEFAULT NULL AFTER `printing_by_id` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `print_color` varchar(255) DEFAULT NULL AFTER `offset_image` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `print_qty` varchar(255) DEFAULT NULL AFTER `print_color` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `print_delivery_id` int(11) DEFAULT NULL AFTER `print_qty` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `print_delivery_phone` varchar(50) DEFAULT NULL AFTER `print_delivery_id` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `die_maker` varchar(255) DEFAULT NULL AFTER `print_delivery_phone` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `die_code` varchar(100) DEFAULT NULL AFTER `die_maker` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `c_die_code` varchar(100) DEFAULT NULL AFTER `die_code` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `designer` varchar(255) DEFAULT NULL AFTER `c_die_code` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `plate` varchar(255) DEFAULT NULL AFTER `designer` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `half_film` tinyint(1) DEFAULT 0 AFTER `plate` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `full_film` tinyint(1) DEFAULT 0 AFTER `half_film` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `lamination_type` varchar(100) DEFAULT NULL AFTER `full_film` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `lamination_extra` varchar(255) DEFAULT NULL AFTER `lamination_type` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `laminas_delivery_id` int(11) DEFAULT NULL AFTER `lamination_extra` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `laminas_delivery_phone` varchar(50) DEFAULT NULL AFTER `laminas_delivery_id` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `job_pesting` tinyint(1) DEFAULT 0 AFTER `laminas_delivery_phone` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `job_pin` tinyint(1) DEFAULT 0 AFTER `job_pesting` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `job_punching` tinyint(1) DEFAULT 0 AFTER `job_pin` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `job_side_pesting` tinyint(1) DEFAULT 0 AFTER `job_punching` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_design` varchar(255) DEFAULT NULL AFTER `job_side_pesting` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_plate` varchar(255) DEFAULT NULL AFTER `bill_design` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_daei` varchar(255) DEFAULT NULL AFTER `bill_plate` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_photo_price` varchar(255) DEFAULT NULL AFTER `bill_daei` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_pcs` varchar(255) DEFAULT NULL AFTER `bill_photo_price` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_rixa_bhadu` varchar(255) DEFAULT NULL AFTER `bill_pcs` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_borrow_charge` varchar(255) DEFAULT NULL AFTER `bill_rixa_bhadu` ",
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_remark` text AFTER `bill_borrow_charge` "
 ];
 
 echo "<h2>Starting Migration...</h2>";
