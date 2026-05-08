@@ -24,8 +24,6 @@ if (!isset($_SESSION['aid'])) {
     <link rel="shortcut icon" href="assets/logo/favicon.png" type="image/x-icon">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
-    <!-- Toastr CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <?php if (isset($extraHead))
         echo $extraHead; ?>
 </head>

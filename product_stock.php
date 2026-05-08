@@ -44,7 +44,7 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                                     <!-- <th>Mapped Material</th>
                                     <th class="text-center">Usage/Unit</th> -->
                                     <th class="text-end">Current Stock</th>
-                                    <th class="text-end">Last Updated</th>
+                                    <!-- <th class="text-end">Last Updated</th> -->
                                 </tr>
                             </thead>
                             <tbody>
@@ -63,9 +63,9 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                                             </span>
                                             <small class="text-muted">PCS</small>
                                         </td>
-                                        <td class="text-end small text-muted">
+                                        <!-- <td class="text-end small text-muted">
                                             <?= $p['updated_at'] ? date('d-m-Y H:i', strtotime($p['updated_at'])) : '-' ?>
-                                        </td>
+                                        </td> -->
                                     </tr>
                                 <?php } ?>
                             </tbody>

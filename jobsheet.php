@@ -17,11 +17,11 @@ $orders = $ai_db->aiGetQuery("SELECT id, order_no, customer_name, brand_name FRO
             <div class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="filter-label">Select JobSheet</label>
-                    <select name="order_id" id="order_id" class="form-select select2-order" data-searchable="false">
+                    <select name="order_id" id="order_id" class="form-select select2-order">
                         <option value="">Select Orders</option>
                         <?php foreach ($orders as $order) { ?>
                             <option value="<?= $order['id'] ?>">
-                                #<?= htmlspecialchars($order['order_no']) ?>
+                                #<?= htmlspecialchars($order['order_no']) ?> - <?= htmlspecialchars($order['customer_name']) ?>
                             </option>
                         <?php } ?>
                     </select>
@@ -57,8 +57,10 @@ $orders = $ai_db->aiGetQuery("SELECT id, order_no, customer_name, brand_name FRO
     </div>
 
     <div id="report_display">
-        <div class="report-result-container">
-            <h5 class="text-muted">Select Order And Date To Generate Report</h5>
+        <div class="report-result-container shadow-sm border-0">
+            <i class="bi bi-file-earmark-text display-4 text-muted mb-3 opacity-25"></i>
+            <h5 class="text-muted fw-bold">Select Order And Date To Generate Report</h5>
+            <p class="text-muted small">Choose the criteria above to view detailed job sheets</p>
         </div>
     </div>
 </div>
@@ -105,7 +107,7 @@ $orders = $ai_db->aiGetQuery("SELECT id, order_no, customer_name, brand_name FRO
             const type = $('#jobsheet_type').val();
 
             if (!orderId && !fromDate) {
-                alert('Please select an order or date range.');
+                showToast('Filter Required', 'Please select an order or date range to print.', 'warning');
                 return;
             }
 

@@ -1,51 +1,86 @@
 .report-card {
-    background: #fff;
+    background: var(--card-bg);
     border-top: 4px solid var(--primary-gold);
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    padding: 20px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+    padding: 25px;
     margin-bottom: 30px;
-    border-radius: 10px;
+    border-radius: 16px;
+    transition: all 0.3s ease;
 }
+
+[data-bs-theme="dark"] .report-card {
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
 .filter-label {
     font-weight: 700;
-    font-size: 0.8rem;
-    color: #444;
-    margin-bottom: 8px;
+    font-size: 0.75rem;
+    color: var(--text-dark);
+    opacity: 0.8;
+    margin-bottom: 10px;
     display: block;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 .report-result-container {
-    min-height: 200px;
+    min-height: 250px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #f8fafc;
-    border-radius: 10px;
-    border: 2px dashed #e2e8f0;
+    background: rgba(197, 160, 89, 0.03);
+    border-radius: 20px;
+    border: 2px dashed rgba(197, 160, 89, 0.2);
     margin-top: 20px;
+    padding: 30px;
+    text-align: center;
+}
+
+[data-bs-theme="dark"] .report-result-container {
+    background: rgba(197, 160, 89, 0.05);
+    border-color: rgba(197, 160, 89, 0.15);
 }
 .report-table th {
-    background-color: #fdfaf3;
-    color: var(--primary-gold-dark);
+    background-color: rgba(197, 160, 89, 0.05);
+    color: var(--primary-gold);
     font-weight: 800;
     text-transform: uppercase;
-    font-size: 0.75rem;
-    padding: 12px;
+    font-size: 0.7rem;
+    padding: 15px 12px;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid rgba(197, 160, 89, 0.1) !important;
+}
+
+[data-bs-theme="dark"] .report-table th {
+    background-color: rgba(197, 160, 89, 0.1);
 }
 
 /* Unified Input Styling */
-.form-control, .form-select, .select2-container--bootstrap-5 .select2-selection {
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 10px !important;
-    padding: 0.75rem 1rem !important;
+.form-control,
+.form-select,
+.select2-container--bootstrap-5 .select2-selection {
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    border-radius: 12px !important;
+    padding: 0.6rem 1rem !important;
     height: auto !important;
-    min-height: 50px;
+    min-height: 48px;
     font-size: 0.95rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s ease;
     background-color: #fff !important;
+    color: #1a1a1a !important;
 }
 
-.form-control:focus, .form-select:focus, .select2-container--bootstrap-5.select2-container--focus .select2-selection {
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .select2-container--bootstrap-5 .select2-selection {
+    background-color: #252525 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #f8f9fa !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+.select2-container--bootstrap-5.select2-container--focus .select2-selection {
     border-color: var(--primary-gold) !important;
     box-shadow: 0 0 0 4px rgba(197, 160, 89, 0.15) !important;
     outline: none;
@@ -57,10 +92,16 @@
 }
 
 .select2-container--bootstrap-5 .select2-dropdown {
-    border-color: #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border-color: var(--primary-gold);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
     overflow: hidden;
+    background-color: #fff;
+}
+
+[data-bs-theme="dark"] .select2-container--bootstrap-5 .select2-dropdown {
+    background-color: #252525;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
 }
 
 .select2-container--bootstrap-5 .select2-results__option--highlighted {

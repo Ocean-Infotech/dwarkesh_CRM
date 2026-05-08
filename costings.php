@@ -106,29 +106,28 @@
 
     function costing_generate_estimate_no($ai_db, $estimateDate, $currentId = 0)
     {
-        $timestamp = strtotime($estimateDate ?: date('Y-m-d'));
-        if (!$timestamp) {
-            $timestamp = time();
-        }
-
-        $prefix = date('Ymd', $timestamp);
-        $where = "estimate_no LIKE '#" . $prefix . "-%' AND is_deleted=0";
+        $where = "is_deleted=0";
         if ($currentId > 0) {
             $where .= " AND id!='" . intval($currentId) . "'";
         }
 
-        $rows = $ai_db->aiGetQuery("SELECT estimate_no FROM tbl_costings WHERE $where ORDER BY id DESC");
-        $nextNumber = 1;
+        // Fetch recent records to find the latest numeric estimate number
+        $rows = $ai_db->aiGetQuery("SELECT estimate_no FROM tbl_costings WHERE $where ORDER BY id DESC LIMIT 100");
+        $maxNumber = 0;
 
         if (!empty($rows)) {
             foreach ($rows as $row) {
-                if (!empty($row['estimate_no']) && preg_match('/-(\d+)$/', $row['estimate_no'], $matches)) {
-                    $nextNumber = max($nextNumber, intval($matches[1]) + 1);
+                $val = trim((string)$row['estimate_no']);
+                // Check if the estimate number is purely numeric
+                if (preg_match('/^\d+$/', $val)) {
+                    $maxNumber = max($maxNumber, intval($val));
                 }
             }
         }
 
-        return '#' . $prefix . '-' . $nextNumber;
+        $nextNumber = $maxNumber + 1;
+        // Start from 001 and increment sequentially (unlimited)
+        return str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");

@@ -54,6 +54,42 @@ if (isset($_POST['btn_submit'])) {
             updated_by = '" . $_SESSION['aid'] . "' 
             WHERE id = $item_id");
 
+        // BOM Deduction Logic: If product stock is decreased, decrease BOM materials stock too
+        if ($item_type == 'product' && $action_type == 'minus') {
+            $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = $item_id AND is_deleted = 0");
+            if (!empty($bom_items)) {
+                foreach ($bom_items as $bom) {
+                    $mat_name = addslashes($bom['material_name']);
+                    $bom_qty = floatval($bom['qty']);
+                    $total_mat_deduct = $bom_qty * $qty;
+
+                    if ($total_mat_deduct > 0) {
+                        // Find the material ID to record in history correctly
+                        $mat_info = $ai_db->aiGetQuery("SELECT id FROM tbl_materials WHERE name = '$mat_name' AND is_deleted = 0 LIMIT 1");
+                        if (!empty($mat_info)) {
+                            $target_mat_id = intval($mat_info[0]['id']);
+
+                            // Deduct from materials table
+                            $ai_db->aiQuery("UPDATE tbl_materials SET 
+                                stock_qty = stock_qty - $total_mat_deduct,
+                                updated_at = NOW(),
+                                updated_by = '" . $_SESSION['aid'] . "'
+                                WHERE id = $target_mat_id");
+
+                            // Record in history for materials
+                            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET 
+                                item_type='material',
+                                item_id='$target_mat_id',
+                                qty='$total_mat_deduct',
+                                action_type='minus',
+                                remarks='Auto-deducted from Product BOM (PID: $item_id)',
+                                created_by='" . $_SESSION['aid'] . "'");
+                        }
+                    }
+                }
+            }
+        }
+
         $ai_core->aiGoPage($redirection_url . "?msg=1");
         exit;
     }
