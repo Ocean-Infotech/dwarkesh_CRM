@@ -275,6 +275,240 @@ body {
     transform: rotate(180deg);
 }
 
+/* Generic table action buttons */
+.table td a.btn[title="Edit"],
+.table td a.btn[title="Delete"] {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 0;
+    line-height: 1;
+}
+
+.table td a.btn[title="Edit"] i,
+.table td a.btn[title="Delete"] i {
+    margin: 0 !important;
+    font-size: 0.95rem;
+}
+
+/* Table action groups */
+.table-action-group {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.table-action-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: #fff;
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+    position: relative;
+}
+
+.table-action-btn i {
+    font-size: 0.9rem;
+}
+
+.table-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.table-action-btn.edit {
+    color: var(--primary-gold-dark);
+    border-color: rgba(197, 160, 89, 0.45);
+    background: rgba(197, 160, 89, 0.08);
+}
+
+.table-action-btn.edit:hover {
+    color: #fff;
+    background: var(--primary-gold);
+    border-color: var(--primary-gold);
+    box-shadow: 0 10px 18px rgba(197, 160, 89, 0.28);
+}
+
+.table-action-btn.delete {
+    color: #dc3545;
+    border-color: rgba(220, 53, 69, 0.35);
+    background: rgba(220, 53, 69, 0.06);
+}
+
+.table-action-btn.delete:hover {
+    color: #fff;
+    background: #dc3545;
+    border-color: #dc3545;
+    box-shadow: 0 10px 18px rgba(220, 53, 69, 0.24);
+}
+
+.table-action-btn.bom {
+    color: #1f2937;
+    border-color: rgba(31, 41, 55, 0.18);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(197, 160, 89, 0.14));
+}
+
+.table-action-btn.bom:hover {
+    color: #fff;
+    background: #1f2937;
+    border-color: #1f2937;
+    box-shadow: 0 10px 18px rgba(31, 41, 55, 0.22);
+}
+
+.table-action-btn .action-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: inherit;
+    font-size: 0.68rem;
+    font-weight: 700;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+}
+
+[data-bs-theme="dark"] .table-action-btn {
+    background: #252525;
+    box-shadow: none;
+}
+
+[data-bs-theme="dark"] .table-action-btn.edit {
+    color: var(--primary-gold);
+    background: rgba(197, 160, 89, 0.12);
+    border-color: rgba(197, 160, 89, 0.4);
+}
+
+[data-bs-theme="dark"] .table-action-btn.delete {
+    background: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.35);
+}
+
+[data-bs-theme="dark"] .table-action-btn.bom {
+    color: #f8f9fa;
+    background: linear-gradient(135deg, rgba(37, 37, 37, 0.95), rgba(197, 160, 89, 0.18));
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Select2 */
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container .select2-selection--single {
+    height: 44px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 0.375rem !important;
+    background-color: #fff !important;
+    display: flex !important;
+    align-items: center !important;
+    box-shadow: none !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    width: 100%;
+    padding-left: 14px !important;
+    padding-right: 40px !important;
+    line-height: 42px !important;
+    color: var(--text-dark) !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 42px !important;
+    right: 10px !important;
+}
+
+.select2-container--default.select2-container--open .select2-selection--single,
+.select2-container--default.select2-container--focus .select2-selection--single {
+    border-color: rgba(197, 160, 89, 0.55) !important;
+    box-shadow: 0 0 0 0.2rem rgba(197, 160, 89, 0.12) !important;
+}
+
+.select2-dropdown {
+    border: 1px solid rgba(197, 160, 89, 0.18) !important;
+    border-radius: 12px !important;
+    overflow: hidden;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.select2-search--dropdown {
+    padding: 10px !important;
+}
+
+.select2-container--default .select2-search--dropdown .select2-search__field {
+    border: 1px solid rgba(197, 160, 89, 0.22) !important;
+    border-radius: 10px !important;
+    padding: 9px 12px !important;
+    outline: none !important;
+}
+
+.select2-results__option {
+    padding: 9px 12px !important;
+    font-size: 0.95rem;
+}
+
+.select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+    background-color: var(--primary-gold) !important;
+    color: #fff !important;
+}
+
+.input-group > .select2-container {
+    flex: 1 1 auto;
+    width: 1% !important;
+}
+
+.input-group > .select2-container .select2-selection--single {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+[data-bs-theme="dark"] .select2-container .select2-selection--single {
+    background-color: #252525 !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] .select2-dropdown {
+    background: #252525 !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 16px 30px rgba(0, 0, 0, 0.32);
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-search--dropdown .select2-search__field {
+    background: #1e1e1e !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] .select2-results__option {
+    color: #f8f9fa !important;
+}
+
 /* Login Page Premium Split-Screen */
 .login-container {
     height: 100vh;
@@ -637,6 +871,13 @@ body {
 @media (max-width: 768px) {
     #sidebar {
         margin-left: -250px;
+    }
+
+    .table-action-btn {
+        width: 34px;
+        min-width: 34px;
+        height: 34px;
+        font-size: 0.8rem;
     }
 
     #sidebar.active {

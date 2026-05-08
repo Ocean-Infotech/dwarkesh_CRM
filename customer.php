@@ -374,6 +374,10 @@
                                         if (isset($data['brand_names']) && !empty($data['brand_names'])) {
                                             if (is_string($data['brand_names'])) {
                                                 $brands = json_decode($data['brand_names'], true);
+                                                if (!is_array($brands)) {
+                                                    $splitBrands = preg_split('/[\r\n,]+/', $data['brand_names']);
+                                                    $brands = is_array($splitBrands) ? $splitBrands : [$data['brand_names']];
+                                                }
                                             } elseif (is_array($data['brand_names'])) {
                                                 $brands = $data['brand_names'];
                                             }

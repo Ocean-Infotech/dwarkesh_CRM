@@ -79,6 +79,8 @@
     </style>';
 
     include 'include/header.php';
+    require_once 'root/schema_bootstrap.php';
+    dwarkesh_ensure_core_tables($ai_db);
 
     $table = "tbl_costings";
     $redirection_url = "costings.php";
@@ -110,6 +112,13 @@
             $decoded = json_decode($value, true);
             if (is_array($decoded)) {
                 $brands = $decoded;
+            } else {
+                $splitBrands = preg_split('/[\r\n,]+/', $value);
+                if (is_array($splitBrands)) {
+                    $brands = $splitBrands;
+                } else {
+                    $brands = [$value];
+                }
             }
         } elseif (is_array($value)) {
             $brands = $value;
@@ -1457,6 +1466,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         brandSelect.dataset.selectedBrand = brandSelect.value;
+        if (typeof refreshSelect2Dropdown === 'function') {
+            refreshSelect2Dropdown(brandSelect);
+        }
     }
 
     function applyProductDefaults(productId, forceFill) {
@@ -1500,6 +1512,9 @@ document.addEventListener('DOMContentLoaded', function () {
         customerBrands[customer.id] = Array.isArray(customer.brand_names) ? customer.brand_names : [];
         upsertOption(customerSelect, customer.id, customer.contact_name);
         customerSelect.value = String(customer.id);
+        if (typeof refreshSelect2Dropdown === 'function') {
+            refreshSelect2Dropdown(customerSelect);
+        }
 
         const selectedBrand = customer.brand_names && customer.brand_names.length ? customer.brand_names[0] : '';
         brandSelect.dataset.selectedBrand = selectedBrand;

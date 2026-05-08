@@ -312,6 +312,8 @@
     </style>';
 
     include 'include/header.php';
+    require_once 'root/schema_bootstrap.php';
+    dwarkesh_ensure_core_tables($ai_db);
 
     $table = "tbl_orders";
     $redirection_url = "orders.php";
@@ -337,7 +339,12 @@
         $brands = [];
         if (is_string($value) && $value !== '') {
             $decoded = json_decode($value, true);
-            if (is_array($decoded)) $brands = $decoded;
+            if (is_array($decoded)) {
+                $brands = $decoded;
+            } else {
+                $splitBrands = preg_split('/[\r\n,]+/', $value);
+                $brands = is_array($splitBrands) ? $splitBrands : [$value];
+            }
         } elseif (is_array($value)) {
             $brands = $value;
         }
@@ -1277,7 +1284,7 @@
                                 <th>Print</th>
                                 <th>Die</th>
                                 <th>MD Code</th>
-                                <th width="230" class="text-center">Action</th>
+                                <th width="170" class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1296,12 +1303,12 @@
                                         <td><?= !empty($row['md_code']) ? htmlspecialchars($row['md_code']) : '<span class="text-muted">-</span>' ?></td>
                                         <td class="text-center">
                                             <div class="order-action-stack">
-                                                <div class="d-flex justify-content-center gap-2">
-                                                    <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
-                                                        <i class="bi bi-pencil-square me-1"></i> Edit
+                                                <div class="table-action-group">
+                                                    <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="table-action-btn edit" title="Edit">
+                                                        <i class="bi bi-pencil-square"></i>
                                                     </a>
-                                                    <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this order?')">
-                                                        <i class="bi bi-trash me-1"></i> Delete
+                                                    <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="table-action-btn delete" title="Delete" onclick="return confirm('Are you sure you want to delete this order?')">
+                                                        <i class="bi bi-trash"></i>
                                                     </a>
                                                 </div>
                                                 <div class="order-extra-icons" aria-hidden="true">
@@ -1571,6 +1578,10 @@
                     if (brand === selectedBrand) opt.selected = true;
                     brandSelect.appendChild(opt);
                 });
+            }
+
+            if (typeof refreshSelect2Dropdown === 'function') {
+                refreshSelect2Dropdown(brandSelect);
             }
         }
 
@@ -1919,6 +1930,9 @@
                         customerBrandsMap[customerId] = Array.isArray(customer.brand_names) ? customer.brand_names : [];
                         upsertOption(custSelect, customerId, customer.contact_name || 'New Customer');
                         custSelect.value = customerId;
+                        if (typeof refreshSelect2Dropdown === 'function') {
+                            refreshSelect2Dropdown(custSelect);
+                        }
 
                         const selectedBrand = customerBrandsMap[customerId].length ? customerBrandsMap[customerId][0] : '';
                         updateBrands(customerId, selectedBrand);

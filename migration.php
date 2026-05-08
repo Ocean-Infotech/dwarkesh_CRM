@@ -61,7 +61,29 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 4. Material Type Table
+    // 4. Product BOM Table
+    "CREATE TABLE IF NOT EXISTS `tbl_product_bom` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `product_id` int(11) NOT NULL,
+        `material_name` varchar(255) NOT NULL,
+        `rate` decimal(10,2) DEFAULT NULL,
+        `qty` decimal(10,2) DEFAULT NULL,
+        `unit` varchar(50) DEFAULT NULL,
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_by` int(11) DEFAULT NULL,
+        `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_by` int(11) DEFAULT NULL,
+        `deleted_at` timestamp NULL DEFAULT NULL,
+        `is_deleted` tinyint(1) DEFAULT 0,
+        PRIMARY KEY (`id`),
+        KEY `product_id` (`product_id`),
+        KEY `created_by` (`created_by`),
+        KEY `updated_by` (`updated_by`),
+        KEY `deleted_by` (`deleted_by`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // 5. Material Type Table
     "CREATE TABLE IF NOT EXISTS `tbl_material_type` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `name` varchar(255) NOT NULL,
@@ -79,7 +101,7 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 5. Materials Table
+    // 6. Materials Table
     "CREATE TABLE IF NOT EXISTS `tbl_materials` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `material_type_id` int(11) NOT NULL,
@@ -104,7 +126,7 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 6. Offset Table
+    // 7. Offset Table
     "CREATE TABLE IF NOT EXISTS `tbl_offset` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `name` varchar(255) NOT NULL,
@@ -123,7 +145,7 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 7. Costings Table
+    // 8. Costings Table
     "CREATE TABLE IF NOT EXISTS `tbl_costings` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `estimate_no` varchar(50) NOT NULL,
@@ -177,7 +199,7 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 8. Orders Table
+    // 9. Orders Table
     "CREATE TABLE IF NOT EXISTS `tbl_orders` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `order_no` varchar(50) NOT NULL,
@@ -211,6 +233,24 @@ $queries = [
         KEY `customer_id` (`customer_id`),
         KEY `product_id` (`product_id`),
         KEY `costing_id` (`costing_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // 10. Orders Items Table
+    "CREATE TABLE IF NOT EXISTS `tbl_orders_item` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `order_id` int(11) NOT NULL,
+        `item_group` varchar(50) DEFAULT NULL,
+        `material_id` int(11) DEFAULT NULL,
+        `material_name` varchar(255) DEFAULT NULL,
+        `name` varchar(255) DEFAULT NULL,
+        `rate` decimal(10,2) DEFAULT NULL,
+        `qty` decimal(10,2) DEFAULT NULL,
+        `pcs` decimal(10,2) DEFAULT NULL,
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `order_id` (`order_id`),
+        KEY `material_id` (`material_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
 ];
 

@@ -6,15 +6,46 @@
     include 'include/header.php';
 
     $table = "tbl_product";
+    $bom_table = "tbl_product_bom";
     $redirection_url = "product.php";
 
     $mode = $_REQUEST['mode'] ?? '';
     $id = isset($_REQUEST['id']) ? intval($_REQUEST['id']) : 0;
+    $bom_id = isset($_REQUEST['bom_id']) ? intval($_REQUEST['bom_id']) : 0;
+    $bom_action = $_REQUEST['bom_action'] ?? '';
     $data = null;
     $error = '';
+    $bom_error = '';
+    $bom_data = null;
+    $bom_items = [];
+    $material_options = [];
+    $selected_product = null;
+
+    // Ensure BOM table exists so the product-wise BOM feature works immediately.
+    $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `product_id` int(11) NOT NULL,
+        `material_name` varchar(255) NOT NULL,
+        `rate` decimal(10,2) DEFAULT NULL,
+        `qty` decimal(10,2) DEFAULT NULL,
+        `unit` varchar(50) DEFAULT NULL,
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_by` int(11) DEFAULT NULL,
+        `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_by` int(11) DEFAULT NULL,
+        `deleted_at` timestamp NULL DEFAULT NULL,
+        `is_deleted` tinyint(1) DEFAULT 0,
+        PRIMARY KEY (`id`),
+        KEY `product_id` (`product_id`),
+        KEY `created_by` (`created_by`),
+        KEY `updated_by` (`updated_by`),
+        KEY `deleted_by` (`deleted_by`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     if ($mode === "add" && isset($_POST['btn_submit'])) {
         $name = trim($_POST['name'] ?? '');
+        $name_escaped = addslashes($name);
         $rate = $_POST['rate'] ?? 0;
         $hsn_code = addslashes($_POST['hsn_code'] ?? '');
         $default_length = $_POST['default_length'] ?? 0;
@@ -26,16 +57,15 @@
         if ($name === '') {
             $error = 'Product Name is required.';
         } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . addslashes($name) . "' AND is_deleted=0 LIMIT 1");
+            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . $name_escaped . "' AND is_deleted=0 LIMIT 1");
             if (!empty($duplicate)) {
                 $error = 'Product Name already exists.';
             }
         }
 
         if (empty($error)) {
-            $name = addslashes($name);
             $add_qry = "INSERT INTO $table SET
-                name='" . $name . "',
+                name='" . $name_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
@@ -63,6 +93,7 @@
 
     if ($mode === "edit" && isset($_POST['btn_submit'])) {
         $name = trim($_POST['name'] ?? '');
+        $name_escaped = addslashes($name);
         $rate = $_POST['rate'] ?? 0;
         $hsn_code = addslashes($_POST['hsn_code'] ?? '');
         $default_length = $_POST['default_length'] ?? 0;
@@ -74,16 +105,15 @@
         if ($name === '') {
             $error = 'Product Name is required.';
         } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . addslashes($name) . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . $name_escaped . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
             if (!empty($duplicate)) {
                 $error = 'Product Name already exists.';
             }
         }
 
         if (empty($error)) {
-            $name = addslashes($name);
             $edit_qry = "UPDATE $table SET
-                name='" . $name . "',
+                name='" . $name_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
@@ -126,6 +156,90 @@
         $data = isset($result[0]) ? $result[0] : null;
     }
 
+    if ($mode === "bom") {
+        if ($id <= 0) {
+            $ai_core->aiGoPage($redirection_url);
+            exit;
+        }
+
+        $product_result = $ai_db->aiGetQuery("SELECT * FROM $table WHERE id='" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+        $selected_product = $product_result[0] ?? null;
+
+        if (!$selected_product) {
+            $ai_core->aiGoPage($redirection_url);
+            exit;
+        }
+
+        $material_options = $ai_db->aiGetQuery("SELECT id, name, rate FROM tbl_materials WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+
+        if ($bom_action === "delete" && $bom_id > 0) {
+            $ai_db->aiQuery("UPDATE $bom_table SET
+                is_deleted=1,
+                deleted_by='" . $_SESSION['aid'] . "',
+                deleted_at=NOW()
+                WHERE id='" . intval($bom_id) . "'
+                AND product_id='" . intval($id) . "'
+                AND is_deleted=0");
+            $ai_core->aiGoPage($redirection_url . "?mode=bom&id=" . intval($id) . "&msg=6");
+            exit;
+        }
+
+        if (isset($_POST['btn_bom_submit'])) {
+            $posted_bom_id = intval($_POST['bom_id'] ?? 0);
+            $material_name = trim($_POST['material_name'] ?? '');
+            $material_name_escaped = addslashes($material_name);
+            $rate = $_POST['rate'] ?? '';
+            $qty = $_POST['qty'] ?? '';
+            $unit = trim($_POST['unit'] ?? '');
+            $unit_escaped = addslashes($unit);
+
+            if ($material_name === '' || $rate === '' || $qty === '' || $unit === '') {
+                $bom_error = 'Material Name, Rate, Qty and Unit are required.';
+            }
+
+            if (empty($bom_error)) {
+                if ($posted_bom_id > 0) {
+                    $ai_db->aiQuery("UPDATE $bom_table SET
+                        material_name='" . $material_name_escaped . "',
+                        rate='" . $rate . "',
+                        qty='" . $qty . "',
+                        unit='" . $unit_escaped . "',
+                        updated_by='" . $_SESSION['aid'] . "'
+                        WHERE id='" . $posted_bom_id . "'
+                        AND product_id='" . intval($id) . "'
+                        AND is_deleted=0");
+                    $ai_core->aiGoPage($redirection_url . "?mode=bom&id=" . intval($id) . "&msg=5");
+                    exit;
+                } else {
+                    $ai_db->aiQuery("INSERT INTO $bom_table SET
+                        product_id='" . intval($id) . "',
+                        material_name='" . $material_name_escaped . "',
+                        rate='" . $rate . "',
+                        qty='" . $qty . "',
+                        unit='" . $unit_escaped . "',
+                        created_by='" . $_SESSION['aid'] . "'");
+                    $ai_core->aiGoPage($redirection_url . "?mode=bom&id=" . intval($id) . "&msg=4");
+                    exit;
+                }
+            }
+
+            $bom_data = [
+                'id' => $posted_bom_id,
+                'material_name' => htmlspecialchars($material_name),
+                'rate' => htmlspecialchars($rate),
+                'qty' => htmlspecialchars($qty),
+                'unit' => htmlspecialchars($unit)
+            ];
+        }
+
+        if ($bom_id > 0 && !isset($_POST['btn_bom_submit'])) {
+            $bom_result = $ai_db->aiGetQuery("SELECT * FROM $bom_table WHERE id='" . intval($bom_id) . "' AND product_id='" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+            $bom_data = $bom_result[0] ?? null;
+        }
+
+        $bom_items = $ai_db->aiGetQuery("SELECT * FROM $bom_table WHERE product_id='" . intval($id) . "' AND is_deleted=0 ORDER BY id DESC");
+    }
+
     $all_data = [];
     $totalRecords = 0;
     $totalPages = 1;
@@ -155,16 +269,16 @@
             return $value !== '' && $value !== null;
         }));
 
-        $where_conditions = ["is_deleted=0"];
+        $where_conditions = ["p.is_deleted=0"];
         if (!empty($filters['filter_name'])) {
-            $where_conditions[] = "name LIKE '%" . addslashes($filters['filter_name']) . "%'";
+            $where_conditions[] = "p.name LIKE '%" . addslashes($filters['filter_name']) . "%'";
         }
         if (!empty($filters['filter_status']) && $filters['filter_status'] !== '') {
-            $where_conditions[] = "status = '" . addslashes($filters['filter_status']) . "'";
+            $where_conditions[] = "p.status = '" . addslashes($filters['filter_status']) . "'";
         }
 
         $where_clause = implode(" AND ", $where_conditions);
-        $countResult = $ai_db->aiGetQuery("SELECT COUNT(*) as total FROM $table WHERE $where_clause");
+        $countResult = $ai_db->aiGetQuery("SELECT COUNT(*) as total FROM $table p WHERE $where_clause");
         $totalRecords = isset($countResult[0]['total']) ? intval($countResult[0]['total']) : 0;
         $totalPages = $totalRecords > 0 ? max(1, ceil($totalRecords / $limit)) : 1;
         if ($page > $totalPages) {
@@ -172,14 +286,28 @@
             $offset = ($page - 1) * $limit;
         }
 
-        $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE $where_clause ORDER BY id DESC LIMIT $limit OFFSET $offset");
+        $all_data = $ai_db->aiGetQuery("SELECT p.*,
+            (SELECT COUNT(*) FROM $bom_table pb WHERE pb.product_id = p.id AND pb.is_deleted=0) as bom_count
+            FROM $table p
+            WHERE $where_clause
+            ORDER BY p.id DESC
+            LIMIT $limit OFFSET $offset");
+    }
+
+    $page_heading = 'All Records';
+    if ($mode === 'add') {
+        $page_heading = 'Add';
+    } elseif ($mode === 'edit') {
+        $page_heading = 'Edit';
+    } elseif ($mode === 'bom') {
+        $page_heading = 'Product BOM';
     }
 ?>
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="fw-bold m-0">
-            <span class="text-muted fw-light">Product /</span> <?= $mode ? ucfirst($mode) : 'All Records' ?>
+            <span class="text-muted fw-light">Product /</span> <?= $page_heading ?>
         </h4>
         <?php if (!$mode) { ?>
             <div class="d-flex align-items-center gap-2">
@@ -200,14 +328,13 @@
     </div>
 
     <?php if (!$mode) { ?>
-        <!-- Filter Section -->
         <div class="collapse mb-3" id="productFilterCollapse">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <form method="POST" action="product.php" class="row g-3">
                         <div class="col-md-4">
                             <label for="filter_name" class="form-label">Product Name</label>
-                            <input type="text" class="form-control" id="filter_name" name="filter_name" 
+                            <input type="text" class="form-control" id="filter_name" name="filter_name"
                                    value="<?= htmlspecialchars($filters['filter_name'] ?? '') ?>" placeholder="Search by Name">
                         </div>
                         <div class="col-md-4">
@@ -241,20 +368,20 @@
                                 <th>Name</th>
                                 <th>Rate</th>
                                 <th>HSN Code</th>
-                                <th>Default Size (L×W×H)</th>
+                                <th>Default Size (LxWxH)</th>
                                 <th>Status</th>
-                                <th width="200" class="text-center">Action</th>
+                                <th width="320" class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (!empty($all_data)) {
                                 foreach ($all_data as $index => $row) { ?>
                                     <tr>
-                                        <td>#<?= $index + 1 ?></td>
+                                        <td>#<?= $offset + $index + 1 ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
-                                        <td>₹<?= number_format($row['rate'], 2) ?></td>
+                                        <td>Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
-                                        <td><?= $row['default_length'] ?>×<?= $row['default_width'] ?>×<?= $row['default_height'] ?> cm</td>
+                                        <td><?= $row['default_length'] ?> x <?= $row['default_width'] ?> x <?= $row['default_height'] ?> cm</td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
                                                 <span class="badge bg-success-subtle text-success px-3 rounded-pill">Active</span>
@@ -263,12 +390,18 @@
                                             <?php } ?>
                                         </td>
                                         <td class="text-center">
-                                            <div class="d-flex justify-content-center gap-2">
-                                                <a href="product.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
-                                                    <i class="bi bi-pencil-square me-1"></i> Edit
+                                            <div class="table-action-group">
+                                                <a href="product.php?mode=edit&id=<?= $row['id'] ?>" class="table-action-btn edit" title="Edit">
+                                                    <i class="bi bi-pencil-square"></i>
                                                 </a>
-                                                <a href="product.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this record?')">
-                                                    <i class="bi bi-trash me-1"></i> Delete
+                                                <a href="product.php?mode=delete&id=<?= $row['id'] ?>" class="table-action-btn delete" title="Delete" onclick="return confirm('Are you sure you want to delete this record?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
+                                                <a href="product.php?mode=bom&id=<?= $row['id'] ?>" class="table-action-btn bom" title="BOM">
+                                                    <i class="bi bi-list-check"></i>
+                                                    <?php if (intval($row['bom_count']) > 0) { ?>
+                                                        <span class="action-count"><?= intval($row['bom_count']) ?></span>
+                                                    <?php } ?>
                                                 </a>
                                             </div>
                                         </td>
@@ -302,7 +435,7 @@
                                                 <a class="page-link" href="product.php?page=<?= $p ?>"><?= $p ?></a>
                                             </li>
                                         <?php } elseif ($p == $page - 3 || $p == $page + 3) { ?>
-                                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
                                         <?php }
                                     } ?>
                                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
@@ -313,6 +446,149 @@
                         <?php } ?>
                     </div>
                 <?php } ?>
+            </div>
+        </div>
+    <?php } elseif ($mode === 'bom') { ?>
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                        <div>
+                            <div class="text-muted small mb-1">Selected Product</div>
+                            <h5 class="fw-bold mb-1"><?= htmlspecialchars($selected_product['name']) ?></h5>
+                            <div class="text-muted small">
+                                HSN: <?= htmlspecialchars($selected_product['hsn_code'] ?: '-') ?> |
+                                Rate: Rs. <?= number_format($selected_product['rate'], 2) ?>
+                            </div>
+                        </div>
+                        <div class="text-md-end">
+                            <div class="text-muted small mb-1">Default Size</div>
+                            <div class="fw-semibold"><?= $selected_product['default_length'] ?> x <?= $selected_product['default_width'] ?> x <?= $selected_product['default_height'] ?> cm</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-transparent border-bottom py-3">
+                        <h5 class="fw-bold mb-0"><?= !empty($bom_data['id']) ? 'Edit BOM Item' : 'Add BOM Item' ?></h5>
+                    </div>
+                    <form class="card-body" method="post" action="product.php?mode=bom&id=<?= $id ?>">
+                        <?php if (!empty($bom_error)) { ?>
+                            <div class="alert alert-danger py-2 mb-3" role="alert">
+                                <?= htmlspecialchars($bom_error) ?>
+                            </div>
+                        <?php } ?>
+
+                        <input type="hidden" name="bom_id" value="<?= isset($bom_data['id']) ? intval($bom_data['id']) : 0 ?>">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Material Name <span class="text-danger">*</span></label>
+                            <select name="material_name" id="material_name" class="form-select" required>
+                                <option value="">Select Material</option>
+                                <?php
+                                    $selected_material_name = isset($bom_data['material_name']) ? trim((string) $bom_data['material_name']) : '';
+                                    $selected_material_found = false;
+                                    foreach ($material_options as $material_option) {
+                                        $option_name = trim((string) ($material_option['name'] ?? ''));
+                                        $is_selected = $selected_material_name !== '' && strcasecmp($selected_material_name, $option_name) === 0;
+                                        if ($is_selected) {
+                                            $selected_material_found = true;
+                                        }
+                                ?>
+                                    <option value="<?= htmlspecialchars($option_name) ?>" data-rate="<?= htmlspecialchars($material_option['rate'] ?? '') ?>" <?= $is_selected ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($option_name) ?>
+                                    </option>
+                                <?php } ?>
+                                <?php if ($selected_material_name !== '' && !$selected_material_found) { ?>
+                                    <option value="<?= htmlspecialchars($selected_material_name) ?>" selected>
+                                        <?= htmlspecialchars($selected_material_name) ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Rate <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" name="rate" class="form-control" placeholder="Enter Rate" value="<?= isset($bom_data['rate']) ? htmlspecialchars($bom_data['rate']) : '' ?>" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Qty <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" name="qty" class="form-control" placeholder="Enter Qty" value="<?= isset($bom_data['qty']) ? htmlspecialchars($bom_data['qty']) : '' ?>" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Unit <span class="text-danger">*</span></label>
+                            <input type="text" name="unit" class="form-control" placeholder="Enter Unit" value="<?= isset($bom_data['unit']) ? htmlspecialchars($bom_data['unit']) : '' ?>" required>
+                        </div>
+
+                        <div class="pt-3 border-top d-flex gap-2">
+                            <button type="submit" name="btn_bom_submit" class="btn btn-gold btn-sm rounded-pill px-4">
+                                <i class="bi bi-check-circle me-1"></i> <?= !empty($bom_data['id']) ? 'Update BOM' : 'Save BOM' ?>
+                            </button>
+                            <?php if (!empty($bom_data['id'])) { ?>
+                                <a href="product.php?mode=bom&id=<?= $id ?>" class="btn btn-outline-secondary btn-sm rounded-pill px-4">Cancel</a>
+                            <?php } ?>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-transparent border-bottom py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0">BOM Items</h5>
+                        <span class="badge bg-dark-subtle text-dark rounded-pill px-3"><?= count($bom_items) ?> Items</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="80">Sr No.</th>
+                                        <th>Material Name</th>
+                                        <th>Rate</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
+                                        <th width="180" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (!empty($bom_items)) {
+                                        foreach ($bom_items as $index => $item) { ?>
+                                            <tr>
+                                                <td>#<?= $index + 1 ?></td>
+                                                <td class="fw-semibold"><?= htmlspecialchars($item['material_name']) ?></td>
+                                                <td>Rs. <?= number_format($item['rate'], 2) ?></td>
+                                                <td><?= htmlspecialchars($item['qty']) ?></td>
+                                                <td><?= htmlspecialchars($item['unit']) ?></td>
+                                                <td class="text-center">
+                                                    <div class="table-action-group">
+                                                        <a href="product.php?mode=bom&id=<?= $id ?>&bom_id=<?= $item['id'] ?>" class="table-action-btn edit">
+                                                            <i class="bi bi-pencil-square"></i>
+                                                        </a>
+                                                        <a href="product.php?mode=bom&id=<?= $id ?>&bom_action=delete&bom_id=<?= $item['id'] ?>" class="table-action-btn delete" onclick="return confirm('Are you sure you want to delete this BOM item?')">
+                                                            <i class="bi bi-trash"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                    <?php }
+                                    } else { ?>
+                                        <tr>
+                                            <td colspan="6" class="text-center py-5 text-muted">
+                                                <i class="bi bi-list-ul display-6 d-block mb-3"></i>
+                                                No BOM items added for this product yet.
+                                            </td>
+                                        </tr>
+                                    <?php } ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     <?php } else { ?>
@@ -333,42 +609,42 @@
                         <div class="row g-4">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control form-control" placeholder="Enter Product Name" value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
+                                <input type="text" name="name" class="form-control" placeholder="Enter Product Name" value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Rate</label>
-                                <input type="number" step="0.01" name="rate" class="form-control form-control" placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
+                                <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">HSN Code</label>
-                                <input type="text" name="hsn_code" class="form-control form-control" placeholder="Enter HSN Code" value="<?= isset($data['hsn_code']) ? htmlspecialchars($data['hsn_code']) : '' ?>">
+                                <input type="text" name="hsn_code" class="form-control" placeholder="Enter HSN Code" value="<?= isset($data['hsn_code']) ? htmlspecialchars($data['hsn_code']) : '' ?>">
                             </div>
 
                             <div class="col-6">
                                 <label class="form-label fw-bold">Default Size</label>
                                 <div class="row g-2">
                                     <div class="col-md-2">
-                                        <input type="number" step="0.01" name="default_length" class="form-control form-control" placeholder="Length (cm)" value="<?= isset($data['default_length']) ? $data['default_length'] : '' ?>">
+                                        <input type="number" step="0.01" name="default_length" class="form-control" placeholder="Length (cm)" value="<?= isset($data['default_length']) ? $data['default_length'] : '' ?>">
                                     </div>
                                     <div class="col-md-2">
-                                        <input type="number" step="0.01" name="default_width" class="form-control form-control" placeholder="Width (cm)" value="<?= isset($data['default_width']) ? $data['default_width'] : '' ?>">
+                                        <input type="number" step="0.01" name="default_width" class="form-control" placeholder="Width (cm)" value="<?= isset($data['default_width']) ? $data['default_width'] : '' ?>">
                                     </div>
                                     <div class="col-md-2">
-                                        <input type="number" step="0.01" name="default_height" class="form-control form-control" placeholder="Height (cm)" value="<?= isset($data['default_height']) ? $data['default_height'] : '' ?>">
+                                        <input type="number" step="0.01" name="default_height" class="form-control" placeholder="Height (cm)" value="<?= isset($data['default_height']) ? $data['default_height'] : '' ?>">
                                     </div>
                                 </div>
                             </div>
 
                             <div class="col-6">
                                 <label class="form-label fw-bold">Description</label>
-                                <textarea name="description" class="form-control form-control" rows="3" placeholder="Enter Description"><?= isset($data['description']) ? htmlspecialchars($data['description']) : '' ?></textarea>
+                                <textarea name="description" class="form-control" rows="3" placeholder="Enter Description"><?= isset($data['description']) ? htmlspecialchars($data['description']) : '' ?></textarea>
                             </div>
 
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Status</label>
-                                <select name="status" class="form-select form-select">
+                                <select name="status" class="form-select">
                                     <option value="active" <?= (!isset($data['status']) || $data['status'] == 'active') ? 'selected' : '' ?>>Active</option>
                                     <option value="deactive" <?= (isset($data['status']) && $data['status'] == 'deactive') ? 'selected' : '' ?>>Deactive</option>
                                 </select>
@@ -387,5 +663,35 @@
         </div>
     <?php } ?>
 </div>
+
+<?php if ($mode === 'bom') { ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const materialSelect = document.getElementById('material_name');
+    const rateInput = document.querySelector('input[name="rate"]');
+    const bomIdInput = document.querySelector('input[name="bom_id"]');
+
+    if (!materialSelect || !rateInput) {
+        return;
+    }
+
+    function applyMaterialRate() {
+        const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+        if (!selectedOption) {
+            return;
+        }
+
+        const selectedRate = selectedOption.getAttribute('data-rate') || '';
+        const isEditing = bomIdInput && bomIdInput.value !== '0';
+
+        if (!isEditing || rateInput.value === '') {
+            rateInput.value = selectedRate;
+        }
+    }
+
+    materialSelect.addEventListener('change', applyMaterialRate);
+});
+</script>
+<?php } ?>
 
 <?php include 'include/footer.php'; ?>

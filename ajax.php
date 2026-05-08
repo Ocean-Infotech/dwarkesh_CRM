@@ -193,6 +193,9 @@ if ($_POST['action'] == 'create_brand_inline') {
         $decoded = json_decode($raw_brands, true);
         if (is_array($decoded)) {
             $existing_brands = $decoded;
+        } else {
+            $splitBrands = preg_split('/[\r\n,]+/', $raw_brands);
+            $existing_brands = is_array($splitBrands) ? $splitBrands : [$raw_brands];
         }
     }
 

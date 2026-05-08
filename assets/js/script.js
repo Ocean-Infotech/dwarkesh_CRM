@@ -1,4 +1,67 @@
 document.addEventListener('DOMContentLoaded', function () {
+    function buildSelect2Config($select) {
+        const $modal = $select.closest('.modal');
+        const $placeholderOption = $select.find('option[value=""]').first();
+        const placeholderText = $placeholderOption.length ? $placeholderOption.text().trim() : '';
+
+        return {
+            width: '100%',
+            dropdownAutoWidth: false,
+            minimumResultsForSearch: 0,
+            placeholder: placeholderText || undefined,
+            dropdownParent: $modal.length ? $modal : jQuery(document.body)
+        };
+    }
+
+    function enhanceSelect2Element(selectElement) {
+        if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2 || !selectElement) {
+            return;
+        }
+
+        const $select = jQuery(selectElement);
+        if ($select.hasClass('select2-hidden-accessible')) {
+            return;
+        }
+
+        $select.select2(buildSelect2Config($select));
+    }
+
+    function initSelect2Dropdowns(scope = document) {
+        if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) {
+            return;
+        }
+
+        const $scope = jQuery(scope);
+        $scope.find('select.form-select:not([multiple]):not([data-searchable="false"])').each(function () {
+            enhanceSelect2Element(this);
+        });
+    }
+
+    function refreshSelect2Dropdown(selectElement) {
+        if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2 || !selectElement) {
+            return;
+        }
+
+        const $select = jQuery(selectElement);
+        const currentValue = $select.val();
+
+        if ($select.hasClass('select2-hidden-accessible')) {
+            $select.select2('destroy');
+        }
+
+        enhanceSelect2Element(selectElement);
+
+        if (currentValue !== undefined && currentValue !== null) {
+            $select.val(currentValue);
+        }
+
+        $select.trigger('change.select2');
+    }
+
+    window.initSelect2Dropdowns = initSelect2Dropdowns;
+    window.refreshSelect2Dropdown = refreshSelect2Dropdown;
+    initSelect2Dropdowns();
+
     // Sidebar Toggle
     const sidebar = document.getElementById('sidebar');
     const sidebarCollapse = document.getElementById('sidebarCollapse');
