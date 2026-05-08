@@ -1268,10 +1268,10 @@
                                 <th>Brand</th>
                                 <th>Box Name</th>
                                 <th>Rate</th>
-                                <th>Plate</th>
+                                <!-- <th>Plate</th>
                                 <th>Print</th>
                                 <th>Die</th>
-                                <th>MD Code</th>
+                                <th>MD Code</th> -->
                                 <th width="170" class="text-center">Action</th>
                             </tr>
                         </thead>
@@ -1285,10 +1285,10 @@
                                         <td><?= $row['brand_name'] !== '' ? htmlspecialchars($row['brand_name']) : '<span class="text-muted">-</span>' ?></td>
                                         <td><?= htmlspecialchars($row['product_name']) ?></td>
                                         <td>Rs. <?= number_format((float) $row['rate'], 2) ?></td>
-                                        <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
+                                        <!-- <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['print_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['die_status'] ?? '-') ?></td>
-                                        <td><?= !empty($row['md_code']) ? htmlspecialchars($row['md_code']) : '<span class="text-muted">-</span>' ?></td>
+                                        <td><?= !empty($row['md_code']) ? htmlspecialchars($row['md_code']) : '<span class="text-muted">-</span>' ?></td> -->
                                         <td class="text-center">
                                             <div class="order-action-stack">
                                                 <div class="table-action-group">
