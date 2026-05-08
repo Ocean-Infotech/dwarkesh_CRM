@@ -268,6 +268,47 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(197, 160, 89, 0.4);
         }
+
+        .order-action-stack {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .order-extra-icons {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+        }
+
+        .order-extra-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 14px;
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .order-extra-icon-print-one {
+            background: #2d9cdb;
+        }
+
+        .order-extra-icon-print-two {
+            background: #27ae60;
+        }
+
+        .order-extra-icon-refresh {
+            background: #f2c94c;
+            color: #1f2937;
+        }
+
     </style>';
 
     include 'include/header.php';
@@ -281,14 +322,15 @@
     $error = '';
 
     // Fetch master data
-    $customers = $ai_db->aiGetQuery("SELECT id, contact_name, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
+    $customers = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
     $products = $ai_db->aiGetQuery("SELECT id, name FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_id FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC");
+    $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     
     // Fixed queries with JOINs
-    $liners = $ai_db->aiGetQuery("SELECT m.id, m.name FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Liner' AND m.status='active' AND m.is_deleted=0");
-    $duplexes = $ai_db->aiGetQuery("SELECT m.id, m.name FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Duplex' AND m.status='active' AND m.is_deleted=0");
-    $offsets = $ai_db->aiGetQuery("SELECT id, contact_name FROM tbl_customer WHERE is_deleted=0 ORDER BY contact_name ASC");
+    $liners = $ai_db->aiGetQuery("SELECT m.id, m.name, m.rate, m.weight FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Liner' AND m.status='active' AND m.is_deleted=0");
+    $duplexes = $ai_db->aiGetQuery("SELECT m.id, m.name, m.rate, m.weight FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Duplex' AND m.status='active' AND m.is_deleted=0");
+    $offsets = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no FROM tbl_customer WHERE is_deleted=0 ORDER BY contact_name ASC");
 
     // Helper to clean brand names from JSON or array
     function clean_brand_names($value) {
@@ -307,57 +349,297 @@
         return array_values(array_unique($cleaned));
     }
 
+    function parse_order_items_json($rawJson) {
+        $decoded = json_decode((string)$rawJson, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($decoded as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $material_id = intval($item['material_id'] ?? 0);
+            $name = trim((string)($item['name'] ?? ''));
+            $rate = is_numeric($item['rate'] ?? null) ? round((float)$item['rate'], 2) : 0;
+            $qty = is_numeric($item['qty'] ?? null) ? round((float)$item['qty'], 2) : 0;
+
+            if ($name === '' && $material_id <= 0) {
+                continue;
+            }
+
+            $items[] = [
+                'material_id' => $material_id,
+                'name' => $name,
+                'rate' => $rate,
+                'qty' => $qty
+            ];
+        }
+
+        return $items;
+    }
+
     $customerBrandsMap = [];
     foreach ($customers as $c) {
         $customerBrandsMap[$c['id']] = clean_brand_names($c['brand_names']);
     }
 
+    $order_columns = [];
+    $order_columns_raw = $ai_db->aiGetQuery("SHOW COLUMNS FROM $table");
+    foreach ((array)$order_columns_raw as $col) {
+        $field_name = strtolower((string)($col['Field'] ?? ''));
+        if ($field_name !== '') {
+            $order_columns[$field_name] = true;
+        }
+    }
+
+    $missing_order_columns = [
+        'liner_delivery_id' => "INT(11) DEFAULT NULL",
+        'liner_delivery_phone' => "VARCHAR(50) DEFAULT NULL",
+        'top_count' => "VARCHAR(100) DEFAULT NULL",
+        'duplex_delivery_id' => "INT(11) DEFAULT NULL",
+        'duplex_delivery_phone' => "VARCHAR(50) DEFAULT NULL"
+    ];
+    foreach ($missing_order_columns as $column_name => $definition) {
+        if (!isset($order_columns[$column_name])) {
+            $ai_db->aiQuery("ALTER TABLE $table ADD COLUMN `$column_name` $definition");
+            $order_columns[$column_name] = true;
+        }
+    }
+
+    $order_items_columns = [];
+    $order_items_columns_raw = $ai_db->aiGetQuery("SHOW COLUMNS FROM tbl_orders_item");
+    foreach ((array)$order_items_columns_raw as $col) {
+        $field_name = strtolower((string)($col['Field'] ?? ''));
+        if ($field_name !== '') {
+            $order_items_columns[$field_name] = true;
+        }
+    }
+
+    $save_order_items = function ($order_id, $liner_items, $duplex_items) use ($ai_db, $order_items_columns) {
+        $order_id = intval($order_id);
+        if ($order_id <= 0) {
+            return;
+        }
+
+        $ai_db->aiQuery("DELETE FROM tbl_orders_item WHERE order_id='" . $order_id . "'");
+
+        $all_items = [];
+        foreach ($liner_items as $item) {
+            $item['item_group'] = 'liner';
+            $all_items[] = $item;
+        }
+        foreach ($duplex_items as $item) {
+            $item['item_group'] = 'duplex';
+            $all_items[] = $item;
+        }
+
+        foreach ($all_items as $item) {
+            $material_id = intval($item['material_id'] ?? 0);
+            $material_name = addslashes((string)($item['name'] ?? ''));
+            $rate = is_numeric($item['rate'] ?? null) ? round((float)$item['rate'], 2) : 0;
+            $qty = is_numeric($item['qty'] ?? null) ? round((float)$item['qty'], 2) : 0;
+            $item_group = addslashes((string)($item['item_group'] ?? 'other'));
+
+            $field_parts = [];
+            $field_parts[] = "order_id='" . $order_id . "'";
+
+            if (isset($order_items_columns['item_group'])) {
+                $field_parts[] = "item_group='" . $item_group . "'";
+            }
+            if (isset($order_items_columns['material_id'])) {
+                $field_parts[] = "material_id='" . $material_id . "'";
+            }
+            if (isset($order_items_columns['material_name'])) {
+                $field_parts[] = "material_name='" . $material_name . "'";
+            } elseif (isset($order_items_columns['name'])) {
+                $field_parts[] = "name='" . $material_name . "'";
+            }
+            if (isset($order_items_columns['rate'])) {
+                $field_parts[] = "rate='" . $rate . "'";
+            }
+            if (isset($order_items_columns['qty'])) {
+                $field_parts[] = "qty='" . $qty . "'";
+            } elseif (isset($order_items_columns['pcs'])) {
+                $field_parts[] = "pcs='" . $qty . "'";
+            }
+
+            if (isset($order_items_columns['created_by'])) {
+                $field_parts[] = "created_by='" . intval($_SESSION['aid'] ?? 0) . "'";
+            }
+
+            $ai_db->aiQuery("INSERT INTO tbl_orders_item SET " . implode(", ", $field_parts));
+        }
+    };
+
     if (isset($_POST['btn_submit'])) {
         $order_no = trim($_POST['order_no'] ?? '');
+        $order_no = ltrim($order_no, '#');
         $order_date = $_POST['order_date'] ?? date('Y-m-d');
         $customer_id = intval($_POST['customer_id'] ?? 0);
         $brand_name = trim($_POST['brand_name'] ?? '');
         $product_id = intval($_POST['product_id'] ?? 0);
+        $box_qty = floatval($_POST['box_qty'] ?? 0);
+        $upps = floatval($_POST['upps'] ?? 0);
+        $rate = floatval($_POST['rate'] ?? 0);
+        $costing_id = intval($_POST['costing_id'] ?? 0);
+        $sheet_length = floatval($_POST['sheet_length'] ?? 0);
+        $sheet_width = floatval($_POST['sheet_width'] ?? 0);
+        $liner_delivery_id = intval($_POST['liner_delivery_id'] ?? 0);
+        $liner_delivery_phone = trim($_POST['liner_delivery_phone'] ?? '');
+        $top_count = trim($_POST['top_count'] ?? '');
+        $duplex_delivery_id = intval($_POST['duplex_delivery_id'] ?? 0);
+        $duplex_delivery_phone = trim($_POST['duplex_delivery_phone'] ?? '');
+        $liner_items = parse_order_items_json($_POST['liner_items_json'] ?? '[]');
+        $duplex_items = parse_order_items_json($_POST['duplex_items_json'] ?? '[]');
+        $existing_offset_image = '';
+        if ($mode === 'edit' && $id > 0) {
+            $existingImageRes = $ai_db->aiGetQuery("SELECT offset_image FROM $table WHERE id='$id' LIMIT 1");
+            $existing_offset_image = (string)($existingImageRes[0]['offset_image'] ?? '');
+        }
+        $offset_image_path = $existing_offset_image;
         
-        if ($order_no === '' || $customer_id === 0 || $product_id === 0) {
-            $error = "Order No, Customer, and Product are required.";
-        } else {
+        if (
+            $order_no === '' || $customer_id === 0 || $brand_name === '' || $product_id === 0 ||
+            $box_qty <= 0 || $upps <= 0 || $rate <= 0 || $costing_id === 0 ||
+            $sheet_length <= 0 || $sheet_width <= 0 ||
+            $liner_delivery_id === 0 || $liner_delivery_phone === '' || $top_count === '' ||
+            $duplex_delivery_id === 0 || $duplex_delivery_phone === ''
+        ) {
+            $error = "Please fill all required fields.";
+        } elseif (empty($liner_items) || empty($duplex_items)) {
+            $error = "Please add at least one liner and one duplex item.";
+        } elseif ($mode === 'add') {
+            $duplicate_order = $ai_db->aiGetQuery("SELECT id FROM $table WHERE order_no='" . addslashes($order_no) . "' AND is_deleted=0 LIMIT 1");
+            if (!empty($duplicate_order)) {
+                $error = "Order No already exists.";
+            }
+        }
+
+        if (empty($error) && isset($_FILES['offset_image']) && intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if (intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                $error = "Offset image upload failed. Please try again.";
+            } else {
+                $upload_dir = 'assets/uploads/orders/offset';
+                if (!is_dir($upload_dir)) {
+                    @mkdir($upload_dir, 0777, true);
+                }
+
+                $original_name = (string)($_FILES['offset_image']['name'] ?? '');
+                $tmp_file = (string)($_FILES['offset_image']['tmp_name'] ?? '');
+                $extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+
+                if (!in_array($extension, $allowed_extensions, true)) {
+                    $error = "Only JPG, JPEG, PNG, WEBP, and PDF files are allowed.";
+                } elseif (!is_uploaded_file($tmp_file)) {
+                    $error = "Invalid uploaded file.";
+                } else {
+                    $new_file_name = 'offset_' . date('YmdHis') . '_' . mt_rand(1000, 9999) . '.' . $extension;
+                    $target_path = $upload_dir . '/' . $new_file_name;
+                    if (move_uploaded_file($tmp_file, $target_path)) {
+                        $offset_image_path = $target_path;
+                    } else {
+                        $error = "Unable to save uploaded image.";
+                    }
+                }
+            }
+        }
+
+        if (empty($error)) {
             $custRow = $ai_db->aiGetQuery("SELECT contact_name FROM tbl_customer WHERE id='$customer_id' LIMIT 1");
             $prodRow = $ai_db->aiGetQuery("SELECT name FROM tbl_product WHERE id='$product_id' LIMIT 1");
             $customer_name = $custRow[0]['contact_name'] ?? '';
             $product_name = $prodRow[0]['name'] ?? '';
 
-            $sql_fields = "
-                order_no='" . addslashes($order_no) . "',
-                order_date='" . addslashes($order_date) . "',
-                customer_id='$customer_id',
-                customer_name='" . addslashes($customer_name) . "',
-                brand_name='" . addslashes($brand_name) . "',
-                product_id='$product_id',
-                product_name='" . addslashes($product_name) . "',
-                box_qty='" . floatval($_POST['box_qty'] ?? 0) . "',
-                box_qty_unit='" . addslashes($_POST['box_qty_unit'] ?? 'PCS') . "',
-                upps='" . floatval($_POST['upps'] ?? 1) . "',
-                rate='" . floatval($_POST['rate'] ?? 0) . "',
-                costing_id='" . intval($_POST['costing_id'] ?? 0) . "',
-                sheet_length='" . floatval($_POST['sheet_length'] ?? 0) . "',
-                sheet_width='" . floatval($_POST['sheet_width'] ?? 0) . "',
-                md_code='" . addslashes($_POST['md_code'] ?? '') . "',
-                plate_status='" . addslashes($_POST['plate_status'] ?? 'No') . "',
-                print_status='" . addslashes($_POST['print_status'] ?? 'No') . "',
-                die_status='" . addslashes($_POST['die_status'] ?? 'No') . "'
-            ";
+            $sql_parts = [];
+            $set_sql_field = function ($field, $value) use (&$sql_parts, $order_columns) {
+                if (!isset($order_columns[strtolower($field)])) {
+                    return;
+                }
+                $sql_parts[] = $field . "='" . $value . "'";
+            };
+
+            $set_sql_field('order_no', addslashes($order_no));
+            $set_sql_field('order_date', addslashes($order_date));
+            $set_sql_field('customer_id', intval($customer_id));
+            $set_sql_field('customer_name', addslashes($customer_name));
+            $set_sql_field('brand_name', addslashes($brand_name));
+            $set_sql_field('product_id', intval($product_id));
+            $set_sql_field('product_name', addslashes($product_name));
+            $set_sql_field('box_qty', $box_qty);
+            $set_sql_field('box_qty_unit', addslashes($_POST['box_qty_unit'] ?? 'PCS'));
+            $set_sql_field('upps', $upps);
+            $set_sql_field('rate', $rate);
+            $set_sql_field('costing_id', $costing_id);
+            $set_sql_field('sheet_length', $sheet_length);
+            $set_sql_field('sheet_width', $sheet_width);
+            $set_sql_field('md_code', addslashes($_POST['md_code'] ?? ''));
+            $set_sql_field('plate_status', addslashes($_POST['plate_status'] ?? 'No'));
+            $set_sql_field('print_status', addslashes($_POST['print_status'] ?? 'No'));
+            $set_sql_field('die_status', addslashes($_POST['die_status'] ?? 'No'));
+
+            $set_sql_field('liner_delivery_id', $liner_delivery_id);
+            $set_sql_field('liner_delivery_phone', addslashes($liner_delivery_phone));
+            $set_sql_field('top_count', addslashes($top_count));
+            $set_sql_field('duplex_delivery_id', $duplex_delivery_id);
+            $set_sql_field('duplex_delivery_phone', addslashes($duplex_delivery_phone));
+
+            $set_sql_field('printing_by_id', intval($_POST['printing_by_id'] ?? 0));
+            $set_sql_field('offset_image', addslashes($offset_image_path));
+            $set_sql_field('print_color', addslashes($_POST['print_color'] ?? ''));
+            $set_sql_field('print_qty', addslashes($_POST['print_qty'] ?? ''));
+            $set_sql_field('print_delivery_id', intval($_POST['print_delivery_id'] ?? 0));
+            $set_sql_field('print_delivery_phone', addslashes($_POST['print_delivery_phone'] ?? ''));
+
+            $set_sql_field('die_maker', addslashes($_POST['die_maker'] ?? ''));
+            $set_sql_field('die_code', addslashes($_POST['die_code'] ?? ''));
+            $set_sql_field('c_die_code', addslashes($_POST['c_die_code'] ?? ''));
+            $set_sql_field('designer', addslashes($_POST['designer'] ?? ''));
+            $set_sql_field('plate', addslashes($_POST['plate'] ?? ''));
+            $set_sql_field('half_film', isset($_POST['half_film']) ? 1 : 0);
+            $set_sql_field('full_film', isset($_POST['full_film']) ? 1 : 0);
+            $set_sql_field('lamination_type', addslashes($_POST['lamination_type'] ?? ''));
+            $set_sql_field('lamination_extra', addslashes($_POST['lamination_extra'] ?? ''));
+            $set_sql_field('laminas_delivery_id', intval($_POST['laminas_delivery_id'] ?? 0));
+            $set_sql_field('laminas_delivery_phone', addslashes($_POST['laminas_delivery_phone'] ?? ''));
+
+            $set_sql_field('job_pesting', isset($_POST['job_pesting']) ? 1 : 0);
+            $set_sql_field('job_pin', isset($_POST['job_pin']) ? 1 : 0);
+            $set_sql_field('job_punching', isset($_POST['job_punching']) ? 1 : 0);
+            $set_sql_field('job_side_pesting', isset($_POST['job_side_pesting']) ? 1 : 0);
+
+            $set_sql_field('bill_design', addslashes($_POST['bill_design'] ?? ''));
+            $set_sql_field('bill_plate', addslashes($_POST['bill_plate'] ?? ''));
+            $set_sql_field('bill_daei', addslashes($_POST['bill_daei'] ?? ''));
+            $set_sql_field('bill_photo_price', addslashes($_POST['bill_photo_price'] ?? ''));
+            $set_sql_field('bill_pcs', addslashes($_POST['bill_pcs'] ?? ''));
+            $set_sql_field('bill_rixa_bhadu', addslashes($_POST['bill_rixa_bhadu'] ?? ''));
+            $set_sql_field('bill_borrow_charge', addslashes($_POST['bill_borrow_charge'] ?? ''));
+            $set_sql_field('bill_remark', addslashes($_POST['bill_remark'] ?? ''));
+
+            $sql_fields = implode(",\n                ", $sql_parts);
 
             if ($mode === 'add') {
                 $ai_db->aiQuery("INSERT INTO $table SET $sql_fields, created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                $new_order_id = intval($ai_db->aiLastInsert());
+                $save_order_items($new_order_id, $liner_items, $duplex_items);
                 $ai_core->aiGoPage($redirection_url . "?msg=1");
                 exit;
             } elseif ($mode === 'edit') {
                 $ai_db->aiQuery("UPDATE $table SET $sql_fields, updated_by='" . ($_SESSION['aid'] ?? 0) . "' WHERE id='$id'");
+                $save_order_items($id, $liner_items, $duplex_items);
                 $ai_core->aiGoPage($redirection_url . "?msg=2");
                 exit;
             }
         }
+
+        $data = array_merge((array)$data, $_POST);
+        $data['offset_image'] = $offset_image_path;
+        $data['liner_items_json'] = json_encode($liner_items, JSON_UNESCAPED_UNICODE);
+        $data['duplex_items_json'] = json_encode($duplex_items, JSON_UNESCAPED_UNICODE);
     }
 
     if ($mode === 'delete' && $id > 0) {
@@ -369,31 +651,115 @@
     if ($mode === 'edit' && $id > 0) {
         $res = $ai_db->aiGetQuery("SELECT * FROM $table WHERE id='$id' LIMIT 1");
         $data = $res[0] ?? null;
+        if (is_array($data)) {
+            $itemRows = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id='" . intval($id) . "' ORDER BY id ASC");
+            $liner_items = [];
+            $duplex_items = [];
+
+            foreach ((array)$itemRows as $itemRow) {
+                $item = [
+                    'material_id' => intval($itemRow['material_id'] ?? 0),
+                    'name' => (string)($itemRow['material_name'] ?? ($itemRow['name'] ?? '')),
+                    'rate' => (float)($itemRow['rate'] ?? 0),
+                    'qty' => (float)($itemRow['qty'] ?? ($itemRow['pcs'] ?? 0))
+                ];
+
+                $group = strtolower((string)($itemRow['item_group'] ?? ''));
+                if ($group === 'duplex') {
+                    $duplex_items[] = $item;
+                } else {
+                    $liner_items[] = $item;
+                }
+            }
+
+            $data['liner_items_json'] = json_encode($liner_items, JSON_UNESCAPED_UNICODE);
+            $data['duplex_items_json'] = json_encode($duplex_items, JSON_UNESCAPED_UNICODE);
+        }
     }
 
+    $filters = [];
+    $hasActiveFilters = false;
+    $filter_from_date = '';
+    $filter_to_date = '';
+
     if (!$mode) {
-        $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC");
+        $filterSessionKey = 'orders_filters';
+        if (isset($_GET['action']) && $_GET['action'] === 'clear_filters') {
+            unset($_SESSION[$filterSessionKey]);
+            $ai_core->aiGoPage('orders.php');
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $_SESSION[$filterSessionKey] = [
+                'filter_date_from' => $_POST['filter_date_from'] ?? '',
+                'filter_date_to' => $_POST['filter_date_to'] ?? ''
+            ];
+        }
+
+        $filters = $_SESSION[$filterSessionKey] ?? [];
+        $hasActiveFilters = !empty(array_filter($filters, function ($value) {
+            return $value !== '' && $value !== null;
+        }));
+        $filter_from_date = $filters['filter_date_from'] ?? '';
+        $filter_to_date = $filters['filter_date_to'] ?? '';
+
+        $where_conditions = ["is_deleted=0"];
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$filter_from_date)) {
+            $where_conditions[] = "order_date >= '" . addslashes($filter_from_date) . "'";
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$filter_to_date)) {
+            $where_conditions[] = "order_date <= '" . addslashes($filter_to_date) . "'";
+        }
+
+        $where_sql = implode(' AND ', $where_conditions);
+        $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE $where_sql ORDER BY id DESC");
+        $totalRecords = count($all_data);
     }
 
     if ($mode === 'add' && !isset($_POST['btn_submit'])) {
-        $lastNumQuery = $ai_db->aiGetQuery("SELECT id FROM $table ORDER BY id DESC LIMIT 1");
-        $nextId = (isset($lastNumQuery[0]['id']) ? intval($lastNumQuery[0]['id']) : 0) + 1;
-        $data['order_no'] = "#" . (3748 + $nextId);
+        $lastSeriesQuery = $ai_db->aiGetQuery("SELECT order_no FROM $table WHERE is_deleted=0 AND order_no REGEXP '^#?[0-9]+$' ORDER BY CAST(REPLACE(order_no, '#', '') AS UNSIGNED) DESC LIMIT 1");
+        $lastSeriesNo = isset($lastSeriesQuery[0]['order_no']) ? intval(str_replace('#', '', (string)$lastSeriesQuery[0]['order_no'])) : 0;
+        $nextSeriesNo = $lastSeriesNo + 1;
+        $data['order_no'] = (string)$nextSeriesNo;
         $data['order_date'] = date('Y-m-d');
     }
+
+    $isFormMode = ($mode === 'add' || $mode === 'edit');
 ?>
 
 <div class="container-fluid py-4">
-    <div class="breadcrumb-container">
-        <h2>Order</h2>
-        <div class="breadcrumb-links">
-            <a href="dashboard.php">Dashboard</a> <span>/</span> <a href="orders.php">Orders</a> <span>/</span> <span>Order Create</span>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold m-0">
+            <span class="text-muted fw-light">Orders /</span> <?= $isFormMode ? ucfirst($mode) : 'All Records' ?>
+        </h4>
+        <?php if (!$isFormMode) { ?>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm rounded-circle btn-filter-toggle <?= !empty($hasActiveFilters) ? 'active' : '' ?>"
+                    data-bs-toggle="collapse" data-bs-target="#ordersFilterCollapse" aria-expanded="false"
+                    aria-controls="ordersFilterCollapse" aria-label="Toggle Filters" title="Toggle Filters">
+                    <i class="bi bi-funnel"></i>
+                </button>
+                <a href="orders.php?mode=add" class="btn btn-gold btn-sm rounded-pill px-3">
+                    <i class="bi bi-plus-lg me-1"></i> Add New
+                </a>
+            </div>
+        <?php } else { ?>
+            <a href="orders.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i> Back to List
+            </a>
+        <?php } ?>
     </div>
 
-    <?php if ($mode === 'add' || $mode === 'edit') { ?>
+
+    <?php if (!empty($error)) { ?>
+        <div class="alert alert-danger border-0 shadow-sm"><?= htmlspecialchars($error) ?></div>
+    <?php } ?>
+
+    <?php if ($isFormMode) { ?>
         <div class="order-page-card">
-            <form method="POST" action="orders.php?mode=<?= $mode ?>&id=<?= $id ?>">
+            <form id="order_form" method="POST" action="orders.php?mode=<?= $mode ?>&id=<?= $id ?>" enctype="multipart/form-data">
                 <div class="row g-4">
                     <!-- Row 1 -->
                     <div class="col-md-4">
@@ -407,47 +773,47 @@
                                     </option>
                                 <?php } ?>
                             </select>
-                            <button type="button" class="btn btn-theme">Add New</button>
+                            <button type="button" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#orderCustomerQuickAddModal">Add New</button>
                         </div>
                     </div>
                     <div class="col-md-5">
                         <label class="form-label">Box Quantity</label>
                         <div class="input-group">
-                            <input type="number" name="box_qty" class="form-control" placeholder="PCS" value="<?= htmlspecialchars($data['box_qty'] ?? '') ?>">
+                            <input type="number" step="0.01" min="0.01" name="box_qty" class="form-control" placeholder="PCS" value="<?= htmlspecialchars($data['box_qty'] ?? '') ?>" required>
                             <span class="input-group-text">PCS</span>
-                            <select name="box_qty_unit" class="form-select">
+                            <select name="box_qty_unit" class="form-select" required>
                                 <option value="PCS" <?= (isset($data['box_qty_unit']) && $data['box_qty_unit'] == 'PCS') ? 'selected' : '' ?>>XXXX</option>
                             </select>
-                            <input type="number" name="upps" class="form-control" placeholder="Upps" value="<?= htmlspecialchars($data['upps'] ?? '1') ?>">
+                            <input type="number" step="0.01" min="0.01" name="upps" class="form-control" placeholder="Upps" value="<?= htmlspecialchars($data['upps'] ?? '1') ?>" required>
                             <span class="input-group-text">Upps</span>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Rate</label>
-                        <input type="number" step="0.01" name="rate" class="form-control" value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate">
+                        <input type="number" step="0.01" min="0.01" name="rate" class="form-control" value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate" required>
                     </div>
 
                     <!-- Row 2 -->
                     <div class="col-md-4">
                         <label class="form-label">Brand</label>
-                        <select name="brand_name" id="brand_name" class="form-select">
+                        <select name="brand_name" id="brand_name" class="form-select" required>
                             <option value="">Select Brand</option>
                         </select>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Order No</label>
-                        <input type="text" name="order_no" class="form-control bg-gray-input" value="<?= htmlspecialchars($data['order_no'] ?? '') ?>" readonly>
+                        <input type="text" name="order_no" class="form-control bg-gray-input" value="<?= htmlspecialchars((string)($data['order_no'] ?? '')) ?>" readonly>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Order Date</label>
-                        <input type="date" name="order_date" class="form-control" value="<?= htmlspecialchars($data['order_date'] ?? date('Y-m-d')) ?>">
+                        <input type="date" name="order_date" class="form-control" value="<?= htmlspecialchars($data['order_date'] ?? date('Y-m-d')) ?>" required>
                     </div>
 
                     <!-- Row 3 -->
                     <div class="col-md-4">
                         <label class="form-label">BOX Name</label>
                         <div class="input-group">
-                            <select name="product_id" class="form-select" required>
+                            <select name="product_id" id="product_id" class="form-select" required>
                                 <option value="">Select a Box</option>
                                 <?php foreach ($products as $p) { ?>
                                     <option value="<?= $p['id'] ?>" <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
@@ -455,12 +821,12 @@
                                     </option>
                                 <?php } ?>
                             </select>
-                            <button type="button" class="btn btn-theme">Add New</button>
+                            <button type="button" class="btn btn-theme" data-bs-toggle="modal" data-bs-target="#orderProductQuickAddModal">Add New</button>
                         </div>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label">Costing Number</label>
-                        <select name="costing_id" id="costing_id" class="form-select">
+                        <select name="costing_id" id="costing_id" class="form-select" required>
                             <option value="">Select Costing</option>
                             <?php foreach ($costings as $cost) { ?>
                                 <option value="<?= $cost['id'] ?>" data-customer="<?= $cost['customer_id'] ?>" <?= (isset($data['costing_id']) && $data['costing_id'] == $cost['id']) ? 'selected' : '' ?>>
@@ -476,10 +842,10 @@
                             <label class="sheet-label">Seet Size</label>
                             <div class="sheet-size-row">
                                 <div class="sheet-input-box">
-                                    <input type="number" step="0.01" name="sheet_length" class="sheet-input-field" placeholder="Length" value="<?= htmlspecialchars($data['sheet_length'] ?? '') ?>">
+                                    <input type="number" step="0.01" min="0.01" name="sheet_length" class="sheet-input-field" placeholder="Length" value="<?= htmlspecialchars($data['sheet_length'] ?? '') ?>" required>
                                 </div>
                                 <div class="sheet-input-box">
-                                    <input type="number" step="0.01" name="sheet_width" class="sheet-input-field" placeholder="Width" value="<?= htmlspecialchars($data['sheet_width'] ?? '') ?>">
+                                    <input type="number" step="0.01" min="0.01" name="sheet_width" class="sheet-input-field" placeholder="Width" value="<?= htmlspecialchars($data['sheet_width'] ?? '') ?>" required>
                                 </div>
                             </div>
                         </div>
@@ -498,24 +864,24 @@
                                     <div class="card-body p-3">
                                         <div class="row g-2 mb-3">
                                             <div class="col-md-6">
-                                                <div class="input-group input-group-sm">
-                                                    <select name="liner_material_id" class="form-select">
+                                                <div class="input-group">
+                                                    <select name="liner_material_id" id="liner_material_id" class="form-select">
                                                         <option value="">Select Liner</option>
                                                         <?php foreach ($liners as $l) { ?>
-                                                            <option value="<?= $l['id'] ?>"><?= htmlspecialchars($l['name']) ?></option>
+                                                            <option value="<?= $l['id'] ?>" data-rate="<?= htmlspecialchars($l['rate'] ?? '0') ?>" data-qty="<?= htmlspecialchars($l['weight'] ?? '0') ?>"><?= htmlspecialchars($l['name']) ?></option>
                                                         <?php } ?>
                                                     </select>
-                                                    <button type="button" class="btn btn-theme btn-sm">Add New</button>
+                                                    <button type="button" class="btn btn-theme open-order-material-modal" data-bs-toggle="modal" data-bs-target="#orderMaterialQuickAddModal" data-material-context="liner" data-material-type-name="Liner">Add New</button>
                                                 </div>
                                             </div>
                                             <div class="col-md-2">
-                                                <input type="text" class="form-control form-control-sm" placeholder="rate">
+                                                <input type="text" id="liner_rate_input" class="form-control form-control-sm" placeholder="rate">
                                             </div>
                                             <div class="col-md-2">
-                                                <input type="text" class="form-control form-control-sm" placeholder="qty">
+                                                <input type="text" id="liner_qty_input" class="form-control form-control-sm" placeholder="qty">
                                             </div>
                                             <div class="col-md-2">
-                                                <button type="button" class="btn btn-theme btn-sm w-100">Add</button>
+                                                <button type="button" id="add_liner_item" class="btn btn-theme btn-sm w-100">Add</button>
                                             </div>
                                         </div>
 
@@ -528,28 +894,31 @@
                                                     <th class="text-center">Action</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody id="liner_items_table_body">
                                                 <!-- Dynamic items -->
                                             </tbody>
                                         </table>
+                                        <input type="hidden" name="liner_items_json" id="liner_items_json" value="<?= htmlspecialchars($data['liner_items_json'] ?? '[]', ENT_QUOTES) ?>">
 
                                         <div class="row g-3 mt-2">
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Liner Delivery To</label>
-                                                <select name="liner_delivery_id" class="form-select form-select-sm">
+                                                <select name="liner_delivery_id" id="liner_delivery_id" class="form-select form-select-sm" required>
                                                     <option value="">----- Select Delivery -----</option>
                                                     <?php foreach ($customers as $c) { ?>
-                                                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['contact_name']) ?></option>
+                                                        <option value="<?= $c['id'] ?>" data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>" <?= (isset($data['liner_delivery_id']) && $data['liner_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                        </option>
                                                     <?php } ?>
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Liner Delivery Phone</label>
-                                                <input type="text" class="form-control form-control-sm" placeholder="Liner Delivery Phone">
+                                                <input type="text" id="liner_delivery_phone" name="liner_delivery_phone" class="form-control form-control-sm" placeholder="Liner Delivery Phone" value="<?= htmlspecialchars($data['liner_delivery_phone'] ?? '') ?>" required>
                                             </div>
                                             <div class="col-md-12">
                                                 <label class="form-label small mb-1">Top Count</label>
-                                                <input type="text" class="form-control form-control-sm" placeholder="top count">
+                                                <input type="text" name="top_count" class="form-control form-control-sm" placeholder="top count" value="<?= htmlspecialchars($data['top_count'] ?? '') ?>" required>
                                             </div>
                                         </div>
                                     </div>
@@ -565,38 +934,58 @@
                                     <div class="card-body p-3">
                                         <label class="form-label small mb-1">Duplex</label>
                                         <div class="row g-2 mb-3">
-                                            <div class="col-md-8">
-                                                <div class="input-group input-group-sm">
-                                                    <select name="duplex_material_id" class="form-select">
+                                            <div class="col-md-6">
+                                                <div class="input-group">
+                                                    <select name="duplex_material_id" id="duplex_material_id" class="form-select">
                                                         <option value="">Select Duplex</option>
                                                         <?php foreach ($duplexes as $d) { ?>
-                                                            <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['name']) ?></option>
+                                                            <option value="<?= $d['id'] ?>" data-rate="<?= htmlspecialchars($d['rate'] ?? '0') ?>" data-qty="<?= htmlspecialchars($d['weight'] ?? '0') ?>"><?= htmlspecialchars($d['name']) ?></option>
                                                         <?php } ?>
                                                     </select>
-                                                    <button type="button" class="btn btn-theme btn-sm">Add New</button>
+                                                    <button type="button" class="btn btn-theme open-order-material-modal" data-bs-toggle="modal" data-bs-target="#orderMaterialQuickAddModal" data-material-context="duplex" data-material-type-name="Duplex">Add New</button>
                                                 </div>
                                             </div>
                                             <div class="col-md-2">
-                                                <input type="text" class="form-control form-control-sm" placeholder="rate">
+                                                <input type="text" id="duplex_rate_input" class="form-control form-control-sm" placeholder="rate">
                                             </div>
                                             <div class="col-md-2">
-                                                <input type="text" class="form-control form-control-sm" placeholder="qty">
+                                                <input type="text" id="duplex_qty_input" class="form-control form-control-sm" placeholder="qty">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="button" id="add_duplex_item" class="btn btn-theme btn-sm w-100">Add</button>
                                             </div>
                                         </div>
+
+                                        <table class="purchase-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Rate</th>
+                                                    <th>Pcs</th>
+                                                    <th class="text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="duplex_items_table_body">
+                                                <!-- Dynamic items -->
+                                            </tbody>
+                                        </table>
+                                        <input type="hidden" name="duplex_items_json" id="duplex_items_json" value="<?= htmlspecialchars($data['duplex_items_json'] ?? '[]', ENT_QUOTES) ?>">
 
                                         <div class="row g-3 mt-4">
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Duplex Delivery To</label>
-                                                <select name="duplex_delivery_id" class="form-select form-select-sm">
+                                                <select name="duplex_delivery_id" id="duplex_delivery_id" class="form-select form-select-sm" required>
                                                     <option value="">----- Select Offset -----</option>
                                                     <?php foreach ($offsets as $o) { ?>
-                                                        <option value="<?= $o['id'] ?>"><?= htmlspecialchars($o['contact_name']) ?></option>
+                                                        <option value="<?= $o['id'] ?>" data-phone="<?= htmlspecialchars($o['phone_no'] ?? '') ?>" <?= (isset($data['duplex_delivery_id']) && $data['duplex_delivery_id'] == $o['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($o['contact_name']) ?>
+                                                        </option>
                                                     <?php } ?>
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Duplex Delivery Phone</label>
-                                                <input type="text" class="form-control form-control-sm" placeholder="Duplex Delivery Phone">
+                                                <input type="text" id="duplex_delivery_phone" name="duplex_delivery_phone" class="form-control form-control-sm" placeholder="Duplex Delivery Phone" value="<?= htmlspecialchars($data['duplex_delivery_phone'] ?? '') ?>" required>
                                             </div>
                                         </div>
                                     </div>
@@ -604,63 +993,529 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="col-12">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="purchase-card purchase-card-liner">
+                                    <div class="purchase-card-header">
+                                        <i class="bi bi-printer"></i> Printing Detail
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="row g-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label small mb-1">Printing By</label>
+                                                <select name="printing_by_id" class="form-select form-select-sm">
+                                                    <option value="">----- Select Offset-----</option>
+                                                    <?php foreach ($offsets as $o) { ?>
+                                                        <option value="<?= $o['id'] ?>" <?= (isset($data['printing_by_id']) && $data['printing_by_id'] == $o['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($o['contact_name']) ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="col-md-12">
+                                                <label class="form-label small mb-1">Upload Offset Image</label>
+                                                <input type="file" name="offset_image" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                                                <?php if (!empty($data['offset_image'])) {
+                                                    $offsetImagePath = (string)$data['offset_image'];
+                                                    $offsetExt = strtolower(pathinfo($offsetImagePath, PATHINFO_EXTENSION));
+                                                ?>
+                                                    <div class="mt-2">
+                                                        <div class="small text-muted mb-1">Current File:</div>
+                                                        <?php if ($offsetExt === 'pdf') { ?>
+                                                            <a href="<?= htmlspecialchars($offsetImagePath) ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                                                <i class="bi bi-file-earmark-pdf me-1"></i> View PDF
+                                                            </a>
+                                                        <?php } else { ?>
+                                                            <a href="<?= htmlspecialchars($offsetImagePath) ?>" target="_blank">
+                                                                <img src="<?= htmlspecialchars($offsetImagePath) ?>" alt="Offset Image" style="max-height:140px; width:auto; border:1px solid #e2e8f0; border-radius:8px; padding:4px; background:#fff;">
+                                                            </a>
+                                                        <?php } ?>
+                                                    </div>
+                                                <?php } ?>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Print Color</label>
+                                                <input type="text" name="print_color" class="form-control form-control-sm" placeholder="Print Color" value="<?= htmlspecialchars($data['print_color'] ?? '') ?>">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Print Qty</label>
+                                                <input type="text" name="print_qty" class="form-control form-control-sm" placeholder="Print Qty" value="<?= htmlspecialchars($data['print_qty'] ?? '') ?>">
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Print Delivery To</label>
+                                                <select name="print_delivery_id" id="print_delivery_id" class="form-select form-select-sm">
+                                                    <option value="">----- Select Delivery-----</option>
+                                                    <?php foreach ($customers as $c) { ?>
+                                                        <option value="<?= $c['id'] ?>" data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>" <?= (isset($data['print_delivery_id']) && $data['print_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Print Delivery Phone</label>
+                                                <input type="text" id="print_delivery_phone" name="print_delivery_phone" class="form-control form-control-sm" placeholder="Print Delivery Phone" value="<?= htmlspecialchars($data['print_delivery_phone'] ?? '') ?>">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="purchase-card purchase-card-duplex">
+                                    <div class="purchase-card-header">
+                                        <i class="bi bi-pencil-square"></i> Record Detail
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Die Maker</label>
+                                                <input type="text" name="die_maker" class="form-control form-control-sm" placeholder="Die Maker" value="<?= htmlspecialchars($data['die_maker'] ?? '') ?>">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label small mb-1">Die Code</label>
+                                                <input type="text" name="die_code" class="form-control form-control-sm" placeholder="Die Code" value="<?= htmlspecialchars($data['die_code'] ?? '') ?>">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label small mb-1">C Die Code</label>
+                                                <input type="text" name="c_die_code" class="form-control form-control-sm" placeholder="C-Die Code" value="<?= htmlspecialchars($data['c_die_code'] ?? '') ?>">
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Designer</label>
+                                                <input type="text" name="designer" class="form-control form-control-sm" placeholder="Designer" value="<?= htmlspecialchars($data['designer'] ?? '') ?>">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Plate</label>
+                                                <input type="text" name="plate" class="form-control form-control-sm" placeholder="Plate" value="<?= htmlspecialchars($data['plate'] ?? '') ?>">
+                                            </div>
+
+                                            <div class="col-md-12">
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="half_film" name="half_film" value="1" <?= !empty($data['half_film']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label small" for="half_film">Half Film</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="full_film" name="full_film" value="1" <?= !empty($data['full_film']) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label small" for="full_film">Full Film</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Lamination</label>
+                                                <select name="lamination_type" class="form-select form-select-sm">
+                                                    <option value="">Select Lamination</option>
+                                                    <option value="XXXX" <?= (isset($data['lamination_type']) && $data['lamination_type'] === 'XXXX') ? 'selected' : '' ?>>XXXX</option>
+                                                    <option value="Gloss" <?= (isset($data['lamination_type']) && $data['lamination_type'] === 'Gloss') ? 'selected' : '' ?>>Gloss</option>
+                                                    <option value="Matt" <?= (isset($data['lamination_type']) && $data['lamination_type'] === 'Matt') ? 'selected' : '' ?>>Matt</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Lamination Extra</label>
+                                                <input type="text" name="lamination_extra" class="form-control form-control-sm" placeholder="Lamination Extra" value="<?= htmlspecialchars($data['lamination_extra'] ?? '') ?>">
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Laminas Delivery To</label>
+                                                <select name="laminas_delivery_id" id="laminas_delivery_id" class="form-select form-select-sm">
+                                                    <option value="">----- Select Delivery-----</option>
+                                                    <?php foreach ($customers as $c) { ?>
+                                                        <option value="<?= $c['id'] ?>" data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>" <?= (isset($data['laminas_delivery_id']) && $data['laminas_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small mb-1">Laminas Delivery Phone</label>
+                                                <input type="text" id="laminas_delivery_phone" name="laminas_delivery_phone" class="form-control form-control-sm" placeholder="Laminas Delivery Phone" value="<?= htmlspecialchars($data['laminas_delivery_phone'] ?? '') ?>">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="purchase-card purchase-card-duplex">
+                            <div class="purchase-card-header">
+                                <i class="bi bi-journal-check"></i> Jobsheet Detail
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="row g-3">
+                                    <div class="col-md-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="job_pesting" name="job_pesting" value="1" <?= !empty($data['job_pesting']) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="job_pesting">Pesting</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="job_pin" name="job_pin" value="1" <?= !empty($data['job_pin']) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="job_pin">Pin</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="job_punching" name="job_punching" value="1" <?= !empty($data['job_punching']) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="job_punching">Punching</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="job_side_pesting" name="job_side_pesting" value="1" <?= !empty($data['job_side_pesting']) ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="job_side_pesting">Side Pesting</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="purchase-card purchase-card-liner">
+                            <div class="purchase-card-header">
+                                <i class="bi bi-receipt-cutoff"></i> Bill Detail
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Design</label>
+                                        <input type="text" name="bill_design" class="form-control form-control-sm" placeholder="Design" value="<?= htmlspecialchars($data['bill_design'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Plate</label>
+                                        <input type="text" name="bill_plate" class="form-control form-control-sm" placeholder="Plate" value="<?= htmlspecialchars($data['bill_plate'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">DAEI</label>
+                                        <input type="text" name="bill_daei" class="form-control form-control-sm" placeholder="DAEI" value="<?= htmlspecialchars($data['bill_daei'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Photo Price</label>
+                                        <input type="text" name="bill_photo_price" class="form-control form-control-sm" placeholder="Photo Price" value="<?= htmlspecialchars($data['bill_photo_price'] ?? '') ?>">
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">PCS</label>
+                                        <input type="text" name="bill_pcs" class="form-control form-control-sm" placeholder="PCS" value="<?= htmlspecialchars($data['bill_pcs'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Rixa Bhadu</label>
+                                        <input type="text" name="bill_rixa_bhadu" class="form-control form-control-sm" placeholder="Rixa" value="<?= htmlspecialchars($data['bill_rixa_bhadu'] ?? '') ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Borrow Charge</label>
+                                        <input type="text" name="bill_borrow_charge" class="form-control form-control-sm" placeholder="Borrow Charge" value="<?= htmlspecialchars($data['bill_borrow_charge'] ?? '') ?>">
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label small mb-1">Remark</label>
+                                        <textarea name="bill_remark" class="form-control form-control-sm" rows="2" placeholder="Remark"><?= htmlspecialchars($data['bill_remark'] ?? '') ?></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="mt-5 text-center">
-                    <button type="submit" name="btn_submit" class="btn btn-gold-pill">
-                        <i class="bi bi-check2-circle me-2"></i> SAVE ORDER
+                <div class="mt-4 pt-3 border-top text-end">
+                    <button type="submit" name="btn_submit" class="btn btn-gold btn-sm rounded-pill px-4">
+                        <i class="bi bi-check-circle me-1"></i> <?= ($mode == 'edit') ? 'Update Order' : 'Save Order' ?>
                     </button>
+                    <a href="orders.php" class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
                 </div>
             </form>
         </div>
     <?php } else { ?>
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-            <div class="card-body p-0">
+        <div class="collapse mb-3 <?= !empty($hasActiveFilters) ? 'show' : '' ?>" id="ordersFilterCollapse">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form method="POST" action="orders.php" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="filter_date_from" class="form-label">Date From</label>
+                            <input type="date" class="form-control" id="filter_date_from" name="filter_date_from"
+                                   value="<?= htmlspecialchars($filter_from_date) ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter_date_to" class="form-label">Date To</label>
+                            <input type="date" class="form-control" id="filter_date_to" name="filter_date_to"
+                                   value="<?= htmlspecialchars($filter_to_date) ?>">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary btn-sm me-2">
+                                <i class="bi bi-search me-1"></i> Filter
+                            </button>
+                            <a href="orders.php?action=clear_filters" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-x-circle me-1"></i> Clear Filters
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-custom">
-                        <thead>
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
                             <tr>
-                                <th>OrderNo</th>
+                                <th>Order No.</th>
                                 <th>Date</th>
                                 <th>Customer</th>
                                 <th>Brand</th>
-                                <th>BOX Name</th>
+                                <th>Box Name</th>
                                 <th>Rate</th>
-                                <th class="text-center">Actions</th>
+                                <th>Plate</th>
+                                <th>Print</th>
+                                <th>Die</th>
+                                <th>MD Code</th>
+                                <th width="230" class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (!empty($all_data)) {
-                                foreach ($all_data as $row) { ?>
+                                foreach ($all_data as $index => $row) { ?>
                                     <tr>
-                                        <td><span class="badge badge-theme px-3 py-1"><?= htmlspecialchars($row['order_no']) ?></span></td>
-                                        <td class="small fw-medium"><?= date('d-m-Y', strtotime($row['order_date'])) ?></td>
-                                        <td class="fw-bold text-dark"><?= htmlspecialchars($row['customer_name']) ?></td>
-                                        <td class="text-muted"><?= htmlspecialchars($row['brand_name'] ?: '-') ?></td>
-                                        <td class="fw-medium"><?= htmlspecialchars($row['product_name']) ?></td>
-                                        <td class="fw-bold text-success">₹<?= number_format($row['rate'], 2) ?></td>
+                                        <td><span class="fw-semibold"><?= htmlspecialchars((string)($row['order_no'] ?? '')) ?></span></td>
+                                        <td><?= date('d-m-Y', strtotime($row['order_date'])) ?></td>
+                                        <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                                        <td><?= $row['brand_name'] !== '' ? htmlspecialchars($row['brand_name']) : '<span class="text-muted">-</span>' ?></td>
+                                        <td><?= htmlspecialchars($row['product_name']) ?></td>
+                                        <td>Rs. <?= number_format((float) $row['rate'], 2) ?></td>
+                                        <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
+                                        <td><?= htmlspecialchars($row['print_status'] ?? '-') ?></td>
+                                        <td><?= htmlspecialchars($row['die_status'] ?? '-') ?></td>
+                                        <td><?= !empty($row['md_code']) ? htmlspecialchars($row['md_code']) : '<span class="text-muted">-</span>' ?></td>
                                         <td class="text-center">
-                                            <div class="d-flex justify-content-center gap-1">
-                                                <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary border-0" title="Edit">
-                                                    <i class="bi bi-pencil-square"></i>
-                                                </a>
-                                                <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger border-0" title="Delete" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i>
-                                                </a>
+                                            <div class="order-action-stack">
+                                                <div class="d-flex justify-content-center gap-2">
+                                                    <a href="orders.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
+                                                        <i class="bi bi-pencil-square me-1"></i> Edit
+                                                    </a>
+                                                    <a href="orders.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this order?')">
+                                                        <i class="bi bi-trash me-1"></i> Delete
+                                                    </a>
+                                                </div>
+                                                <div class="order-extra-icons" aria-hidden="true">
+                                                    <span class="order-extra-icon order-extra-icon-print-one" title="Print"><i class="bi bi-printer-fill"></i></span>
+                                                    <span class="order-extra-icon order-extra-icon-print-two" title="Print"><i class="bi bi-printer-fill"></i></span>
+                                                    <span class="order-extra-icon order-extra-icon-refresh" title="Refresh"><i class="bi bi-arrow-repeat"></i></span>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 <?php }
                             } else { ?>
-                                <tr><td colspan="7" class="text-center py-5 text-muted">No orders found.</td></tr>
+                                <tr>
+                                    <td colspan="11" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                                        No data available. Click "Add New" to create your first order.
+                                    </td>
+                                </tr>
                             <?php } ?>
                         </tbody>
                     </table>
                 </div>
+                <?php if (!empty($totalRecords)) { ?>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="text-muted small">
+                            Showing 1 to <?= $totalRecords ?> of <?= $totalRecords ?> entries
+                        </div>
+                    </div>
+                <?php } ?>
             </div>
         </div>
     <?php } ?>
 </div>
+
+<?php if ($isFormMode) { ?>
+    <div class="modal fade" id="orderCustomerQuickAddModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Add Customer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="orderCustomerQuickAddForm">
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Contact Name <span class="text-danger">*</span></label>
+                                <input type="text" name="contact_name" class="form-control" placeholder="Enter Contact Name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Phone No <span class="text-danger">*</span></label>
+                                <input type="text" name="phone_no" class="form-control" placeholder="Enter Phone Number" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Address</label>
+                                <textarea name="address" class="form-control" rows="3" placeholder="Enter Address"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">City Name</label>
+                                <input type="text" name="city_name" class="form-control" placeholder="Enter City Name">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Status</label>
+                                <select name="status" class="form-select">
+                                    <option value="active" selected>Active</option>
+                                    <option value="deactive">Deactive</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <div class="bg-light p-3 rounded border">
+                                    <label class="form-label fw-bold d-block mb-3">Brand Names</label>
+                                    <div id="orderModalBrandRepeater">
+                                        <div class="input-group input-group-sm mb-2 order-modal-brand-item">
+                                            <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                                            <input type="text" name="brand_names[]" class="form-control" placeholder="Brand Name">
+                                            <button type="button" class="btn btn-danger removeOrderModalBrand"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-success btn-sm rounded-pill px-3 mt-2" id="addOrderModalBrandBtn">
+                                        <i class="bi bi-plus-circle me-1"></i> Add More
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-gold" id="orderCustomerQuickAddSubmit">Save Customer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="orderProductQuickAddModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Add Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="orderProductQuickAddForm">
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Product Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="Enter product name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Rate</label>
+                                <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter rate">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">HSN Code</label>
+                                <input type="text" name="hsn_code" class="form-control" placeholder="Enter HSN Code">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Default Size</label>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <input type="number" step="0.01" name="default_length" class="form-control" placeholder="L">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="number" step="0.01" name="default_width" class="form-control" placeholder="W">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="number" step="0.01" name="default_height" class="form-control" placeholder="H">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Description</label>
+                                <textarea name="description" class="form-control" rows="3" placeholder="Enter Description"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Status</label>
+                                <select name="status" class="form-select">
+                                    <option value="active" selected>Active</option>
+                                    <option value="deactive">Deactive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-gold" id="orderProductQuickAddSubmit">Save Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="orderMaterialQuickAddModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="orderMaterialQuickAddTitle">Add Material</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="orderMaterialQuickAddForm">
+                    <input type="hidden" name="material_context" id="order_material_context" value="liner">
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Material Type <span class="text-danger">*</span></label>
+                                <select name="material_type_id" id="order_material_type_id" class="form-select" required>
+                                    <option value="">Select Material Type</option>
+                                    <?php foreach ($materialTypes as $materialType) { ?>
+                                        <option value="<?= $materialType['id'] ?>" data-name="<?= htmlspecialchars($materialType['name']) ?>"><?= htmlspecialchars($materialType['name']) ?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="Enter Material Name" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold">F Value</label>
+                                <input type="number" step="0.01" name="f_value" class="form-control" placeholder="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold">P Value</label>
+                                <input type="number" step="0.01" name="p_value" class="form-control" placeholder="0">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold">Top Value</label>
+                                <input type="number" step="0.01" name="top_value" class="form-control" placeholder="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Rate</label>
+                                <input type="number" step="0.01" name="rate" class="form-control" placeholder="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Weight</label>
+                                <input type="number" step="0.01" name="weight" class="form-control" placeholder="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Status</label>
+                                <select name="status" class="form-select">
+                                    <option value="active" selected>Active</option>
+                                    <option value="deactive">Deactive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-gold" id="orderMaterialQuickAddSubmit">Save Material</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<?php } ?>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -669,6 +1524,41 @@
 
         const custSelect = document.getElementById('customer_id');
         const brandSelect = document.getElementById('brand_name');
+        const productSelect = document.getElementById('product_id');
+        const costingSelect = document.getElementById('costing_id');
+        const customerQuickAddForm = document.getElementById('orderCustomerQuickAddForm');
+        const productQuickAddForm = document.getElementById('orderProductQuickAddForm');
+        const materialQuickAddForm = document.getElementById('orderMaterialQuickAddForm');
+        const customerQuickAddModal = document.getElementById('orderCustomerQuickAddModal');
+        const productQuickAddModal = document.getElementById('orderProductQuickAddModal');
+        const materialQuickAddModal = document.getElementById('orderMaterialQuickAddModal');
+        const orderForm = document.getElementById('order_form');
+        const linerMaterialSelect = document.getElementById('liner_material_id');
+        const duplexMaterialSelect = document.getElementById('duplex_material_id');
+        const materialContextField = document.getElementById('order_material_context');
+        const materialTypeField = document.getElementById('order_material_type_id');
+        const materialQuickAddTitle = document.getElementById('orderMaterialQuickAddTitle');
+        const openMaterialModalButtons = document.querySelectorAll('.open-order-material-modal');
+        const linerRateInput = document.getElementById('liner_rate_input');
+        const linerQtyInput = document.getElementById('liner_qty_input');
+        const addLinerItemButton = document.getElementById('add_liner_item');
+        const linerItemsTableBody = document.getElementById('liner_items_table_body');
+        const linerItemsJson = document.getElementById('liner_items_json');
+        const duplexRateInput = document.getElementById('duplex_rate_input');
+        const duplexQtyInput = document.getElementById('duplex_qty_input');
+        const addDuplexItemButton = document.getElementById('add_duplex_item');
+        const duplexItemsTableBody = document.getElementById('duplex_items_table_body');
+        const duplexItemsJson = document.getElementById('duplex_items_json');
+        const linerDeliverySelect = document.getElementById('liner_delivery_id');
+        const linerDeliveryPhoneInput = document.getElementById('liner_delivery_phone');
+        const duplexDeliverySelect = document.getElementById('duplex_delivery_id');
+        const duplexDeliveryPhoneInput = document.getElementById('duplex_delivery_phone');
+        const printDeliverySelect = document.getElementById('print_delivery_id');
+        const printDeliveryPhoneInput = document.getElementById('print_delivery_phone');
+        const laminasDeliverySelect = document.getElementById('laminas_delivery_id');
+        const laminasDeliveryPhoneInput = document.getElementById('laminas_delivery_phone');
+        let linerItems = [];
+        let duplexItems = [];
 
         function updateBrands(custId, selectedBrand = '') {
             if (!brandSelect) return;
@@ -684,23 +1574,509 @@
             }
         }
 
+        function filterCostingsByCustomer(custId) {
+            if (!costingSelect) return;
+            Array.from(costingSelect.options).forEach(opt => {
+                if (opt.value === "") return;
+                if (opt.dataset.customer == custId || custId === "") opt.style.display = "";
+                else opt.style.display = "none";
+            });
+        }
+
+        function upsertOption(selectElement, value, label, extraData = {}) {
+            if (!selectElement) return;
+            let existing = Array.from(selectElement.options).find(opt => String(opt.value) === String(value));
+            if (!existing) {
+                existing = document.createElement('option');
+                existing.value = value;
+                selectElement.appendChild(existing);
+            }
+            existing.textContent = label;
+            if (extraData.rate !== undefined) existing.dataset.rate = extraData.rate;
+            if (extraData.qty !== undefined) existing.dataset.qty = extraData.qty;
+        }
+
+        function parseNumber(value) {
+            const num = parseFloat(String(value || '').replace(/,/g, '').trim());
+            return Number.isFinite(num) ? num : 0;
+        }
+
+        function formatNumber(value) {
+            return parseNumber(value).toFixed(2);
+        }
+
+        function fillMaterialInputs(selectEl, rateEl, qtyEl) {
+            if (!selectEl || !rateEl || !qtyEl) return;
+            const selected = selectEl.options[selectEl.selectedIndex];
+            if (!selected || !selectEl.value) {
+                rateEl.value = '';
+                qtyEl.value = '';
+                return;
+            }
+
+            rateEl.value = selected.dataset.rate || '0';
+            qtyEl.value = '';
+        }
+
+        function fillDeliveryPhone(selectEl, phoneInputEl) {
+            if (!selectEl || !phoneInputEl) return;
+            const selected = selectEl.options[selectEl.selectedIndex];
+            if (!selected || !selectEl.value) {
+                phoneInputEl.value = '';
+                return;
+            }
+
+            phoneInputEl.value = selected.dataset.phone || '';
+        }
+
+        function renderLinerItems() {
+            if (!linerItemsTableBody) return;
+            if (!linerItems.length) {
+                linerItemsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No liner added.</td></tr>';
+            } else {
+                linerItemsTableBody.innerHTML = linerItems.map((item, index) => `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${formatNumber(item.rate)}</td>
+                        <td>${formatNumber(item.qty)}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-liner-item" data-index="${index}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            if (linerItemsJson) {
+                linerItemsJson.value = JSON.stringify(linerItems);
+            }
+        }
+
+        function renderDuplexItems() {
+            if (!duplexItemsTableBody) return;
+            if (!duplexItems.length) {
+                duplexItemsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No duplex added.</td></tr>';
+            } else {
+                duplexItemsTableBody.innerHTML = duplexItems.map((item, index) => `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${formatNumber(item.rate)}</td>
+                        <td>${formatNumber(item.qty)}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-duplex-item" data-index="${index}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            if (duplexItemsJson) {
+                duplexItemsJson.value = JSON.stringify(duplexItems);
+            }
+        }
+
+        function addLineItem(kind) {
+            const isLiner = kind === 'liner';
+            const selectEl = isLiner ? linerMaterialSelect : duplexMaterialSelect;
+            const rateEl = isLiner ? linerRateInput : duplexRateInput;
+            const qtyEl = isLiner ? linerQtyInput : duplexQtyInput;
+            const target = isLiner ? linerItems : duplexItems;
+
+            if (!selectEl || !rateEl || !qtyEl) return;
+            if (!selectEl.value) {
+                alert(`Please select ${isLiner ? 'liner' : 'duplex'}.`);
+                return;
+            }
+
+            const selected = selectEl.options[selectEl.selectedIndex];
+            target.push({
+                material_id: parseInt(selectEl.value, 10) || 0,
+                name: (selected.textContent || '').trim(),
+                rate: parseNumber(rateEl.value),
+                qty: parseNumber(qtyEl.value)
+            });
+
+            selectEl.value = '';
+            rateEl.value = '';
+            qtyEl.value = '';
+
+            if (isLiner) renderLinerItems();
+            else renderDuplexItems();
+        }
+
+        function toggleSubmitButton(button, isLoading, loadingText) {
+            if (!button) return;
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
+            }
+            button.disabled = !!isLoading;
+            button.textContent = isLoading ? (loadingText || 'Saving...') : button.dataset.originalText;
+        }
+
+        function resetQuickForm(formElement) {
+            if (!formElement) return;
+            formElement.reset();
+            formElement.classList.remove('was-validated');
+
+            if (formElement.id === 'orderCustomerQuickAddForm') {
+                const repeater = document.getElementById('orderModalBrandRepeater');
+                if (repeater) {
+                    repeater.innerHTML = `
+                        <div class="input-group input-group-sm mb-2 order-modal-brand-item">
+                            <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                            <input type="text" name="brand_names[]" class="form-control" placeholder="Brand Name">
+                            <button type="button" class="btn btn-danger removeOrderModalBrand"><i class="bi bi-trash"></i></button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function setModalMaterialTypeByName(typeName) {
+            if (!materialTypeField) return;
+            const target = String(typeName || '').trim().toLowerCase();
+            if (!target) return;
+            const option = Array.from(materialTypeField.options).find(opt => String(opt.dataset.name || opt.textContent || '').trim().toLowerCase() === target);
+            if (option) {
+                materialTypeField.value = option.value;
+            }
+        }
+
+        function hideModal(modalElement) {
+            if (!modalElement || typeof bootstrap === 'undefined') return;
+            bootstrap.Modal.getOrCreateInstance(modalElement).hide();
+        }
+
+        function handleAjaxError(message) {
+            if (typeof showToast === 'function') {
+                showToast('Error', message || 'Something went wrong.', 'error');
+            } else {
+                alert(message || 'Something went wrong.');
+            }
+        }
+
         if (custSelect) {
             if (custSelect.value) {
                 updateBrands(custSelect.value, currentBrand);
+                filterCostingsByCustomer(custSelect.value);
             }
 
             custSelect.addEventListener('change', function() {
                 const custId = this.value;
                 updateBrands(custId);
-                
-                const costingSelect = document.getElementById('costing_id');
-                Array.from(costingSelect.options).forEach(opt => {
-                    if (opt.value === "") return;
-                    if (opt.dataset.customer == custId || custId === "") opt.style.display = "";
-                    else opt.style.display = "none";
+                filterCostingsByCustomer(custId);
+            });
+        }
+
+        try {
+            linerItems = JSON.parse(linerItemsJson ? (linerItemsJson.value || '[]') : '[]');
+            if (!Array.isArray(linerItems)) linerItems = [];
+        } catch (error) {
+            linerItems = [];
+        }
+
+        try {
+            duplexItems = JSON.parse(duplexItemsJson ? (duplexItemsJson.value || '[]') : '[]');
+            if (!Array.isArray(duplexItems)) duplexItems = [];
+        } catch (error) {
+            duplexItems = [];
+        }
+
+        renderLinerItems();
+        renderDuplexItems();
+
+        if (linerMaterialSelect) {
+            linerMaterialSelect.addEventListener('change', function() {
+                fillMaterialInputs(linerMaterialSelect, linerRateInput, linerQtyInput);
+            });
+        }
+
+        if (duplexMaterialSelect) {
+            duplexMaterialSelect.addEventListener('change', function() {
+                fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
+            });
+        }
+
+        if (linerMaterialSelect && linerMaterialSelect.value) {
+            fillMaterialInputs(linerMaterialSelect, linerRateInput, linerQtyInput);
+        }
+        if (duplexMaterialSelect && duplexMaterialSelect.value) {
+            fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
+        }
+
+        if (linerDeliverySelect) {
+            linerDeliverySelect.addEventListener('change', function() {
+                fillDeliveryPhone(linerDeliverySelect, linerDeliveryPhoneInput);
+            });
+            if (linerDeliverySelect.value && linerDeliveryPhoneInput && !linerDeliveryPhoneInput.value) {
+                fillDeliveryPhone(linerDeliverySelect, linerDeliveryPhoneInput);
+            }
+        }
+
+        if (duplexDeliverySelect) {
+            duplexDeliverySelect.addEventListener('change', function() {
+                fillDeliveryPhone(duplexDeliverySelect, duplexDeliveryPhoneInput);
+            });
+            if (duplexDeliverySelect.value && duplexDeliveryPhoneInput && !duplexDeliveryPhoneInput.value) {
+                fillDeliveryPhone(duplexDeliverySelect, duplexDeliveryPhoneInput);
+            }
+        }
+
+        if (printDeliverySelect) {
+            printDeliverySelect.addEventListener('change', function() {
+                fillDeliveryPhone(printDeliverySelect, printDeliveryPhoneInput);
+            });
+            if (printDeliverySelect.value && printDeliveryPhoneInput && !printDeliveryPhoneInput.value) {
+                fillDeliveryPhone(printDeliverySelect, printDeliveryPhoneInput);
+            }
+        }
+
+        if (laminasDeliverySelect) {
+            laminasDeliverySelect.addEventListener('change', function() {
+                fillDeliveryPhone(laminasDeliverySelect, laminasDeliveryPhoneInput);
+            });
+            if (laminasDeliverySelect.value && laminasDeliveryPhoneInput && !laminasDeliveryPhoneInput.value) {
+                fillDeliveryPhone(laminasDeliverySelect, laminasDeliveryPhoneInput);
+            }
+        }
+
+        if (orderForm) {
+            orderForm.addEventListener('submit', function(event) {
+                if (!linerItems.length || !duplexItems.length) {
+                    event.preventDefault();
+                    alert('Please add at least one liner and one duplex item.');
+                }
+            });
+        }
+
+        if (addLinerItemButton) {
+            addLinerItemButton.addEventListener('click', function() {
+                addLineItem('liner');
+            });
+        }
+
+        if (addDuplexItemButton) {
+            addDuplexItemButton.addEventListener('click', function() {
+                addLineItem('duplex');
+            });
+        }
+
+        if (linerItemsTableBody) {
+            linerItemsTableBody.addEventListener('click', function(event) {
+                const deleteButton = event.target.closest('.remove-liner-item');
+                if (!deleteButton) return;
+                const index = parseInt(deleteButton.dataset.index, 10);
+                if (Number.isInteger(index) && index >= 0) {
+                    linerItems.splice(index, 1);
+                    renderLinerItems();
+                }
+            });
+        }
+
+        if (duplexItemsTableBody) {
+            duplexItemsTableBody.addEventListener('click', function(event) {
+                const deleteButton = event.target.closest('.remove-duplex-item');
+                if (!deleteButton) return;
+                const index = parseInt(deleteButton.dataset.index, 10);
+                if (Number.isInteger(index) && index >= 0) {
+                    duplexItems.splice(index, 1);
+                    renderDuplexItems();
+                }
+            });
+        }
+
+        if (customerQuickAddForm) {
+            customerQuickAddForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                const submitButton = document.getElementById('orderCustomerQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
+
+                const formData = new FormData(this);
+                formData.append('action', 'create_customer_inline');
+
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Customer save failed.');
+                            return;
+                        }
+
+                        const customer = data.customer || {};
+                        const customerId = String(customer.id || '');
+                        if (!customerId) return;
+
+                        customerBrandsMap[customerId] = Array.isArray(customer.brand_names) ? customer.brand_names : [];
+                        upsertOption(custSelect, customerId, customer.contact_name || 'New Customer');
+                        custSelect.value = customerId;
+
+                        const selectedBrand = customerBrandsMap[customerId].length ? customerBrandsMap[customerId][0] : '';
+                        updateBrands(customerId, selectedBrand);
+                        filterCostingsByCustomer(customerId);
+
+                        hideModal(customerQuickAddModal);
+                        resetQuickForm(customerQuickAddForm);
+                    })
+                    .catch(() => {
+                        handleAjaxError('An unexpected error occurred.');
+                    })
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
+                    });
+            });
+        }
+
+        if (productQuickAddForm) {
+            productQuickAddForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                const submitButton = document.getElementById('orderProductQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
+
+                const formData = new FormData(this);
+                formData.append('action', 'create_product_inline');
+
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Product save failed.');
+                            return;
+                        }
+
+                        const product = data.product || {};
+                        const productId = String(product.id || '');
+                        if (!productId) return;
+
+                        upsertOption(productSelect, productId, product.name || 'New Product');
+                        productSelect.value = productId;
+
+                        hideModal(productQuickAddModal);
+                        resetQuickForm(productQuickAddForm);
+                    })
+                    .catch(() => {
+                        handleAjaxError('Unable to save product right now.');
+                    })
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
+                    });
+            });
+        }
+
+        if (openMaterialModalButtons.length) {
+            openMaterialModalButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const context = this.dataset.materialContext || 'liner';
+                    const typeName = this.dataset.materialTypeName || '';
+                    if (materialContextField) materialContextField.value = context;
+                    if (materialQuickAddTitle) materialQuickAddTitle.textContent = `Add ${typeName || 'Material'}`;
+                    resetQuickForm(materialQuickAddForm);
+                    setModalMaterialTypeByName(typeName);
                 });
             });
         }
+
+        if (materialQuickAddForm) {
+            materialQuickAddForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                const submitButton = document.getElementById('orderMaterialQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
+
+                const formData = new FormData(this);
+                formData.append('action', 'create_material_inline');
+
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Material save failed.');
+                            return;
+                        }
+
+                        const material = data.material || {};
+                        const materialId = String(material.id || '');
+                        if (!materialId) return;
+                        const materialRate = material.rate !== undefined ? material.rate : 0;
+                        const materialQty = material.weight !== undefined ? material.weight : 0;
+
+                        const context = materialContextField ? materialContextField.value : 'liner';
+                        if (context === 'duplex') {
+                            upsertOption(duplexMaterialSelect, materialId, material.name || 'New Material', {
+                                rate: materialRate,
+                                qty: materialQty
+                            });
+                            duplexMaterialSelect.value = materialId;
+                            fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
+                        } else {
+                            upsertOption(linerMaterialSelect, materialId, material.name || 'New Material', {
+                                rate: materialRate,
+                                qty: materialQty
+                            });
+                            linerMaterialSelect.value = materialId;
+                            fillMaterialInputs(linerMaterialSelect, linerRateInput, linerQtyInput);
+                        }
+
+                        hideModal(materialQuickAddModal);
+                        resetQuickForm(materialQuickAddForm);
+                    })
+                    .catch(() => {
+                        handleAjaxError('Unable to save material right now.');
+                    })
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
+                    });
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('#addOrderModalBrandBtn')) {
+                const container = document.getElementById('orderModalBrandRepeater');
+                if (!container) return;
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="input-group input-group-sm mb-2 order-modal-brand-item">
+                        <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                        <input type="text" name="brand_names[]" class="form-control" placeholder="Brand Name">
+                        <button type="button" class="btn btn-danger removeOrderModalBrand"><i class="bi bi-trash"></i></button>
+                    </div>
+                `);
+            }
+
+            if (e.target.closest('.removeOrderModalBrand')) {
+                const item = e.target.closest('.order-modal-brand-item');
+                const container = document.getElementById('orderModalBrandRepeater');
+                if (container && container.querySelectorAll('.order-modal-brand-item').length > 1) {
+                    item.remove();
+                } else if (item) {
+                    const input = item.querySelector('input');
+                    if (input) input.value = '';
+                }
+            }
+        });
     });
 </script>
 

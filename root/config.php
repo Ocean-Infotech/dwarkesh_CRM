@@ -8,7 +8,7 @@ session_start();
 error_reporting(E_ALL);
 // website full url
 define('APP_NAME', 'Dwarkesh ');
-define('SITE_LOCAL_URL', 'http://localhost/dwarkesh/');
+define('SITE_LOCAL_URL', 'http://localhost/dwarkesh_CRM/');
 define('SITE_NAME', 'Dwarkesh Matrimony');
 define('SITE_LIVE_URL', 'https://oceaninfotechcrm.com/');
 
