@@ -1,12 +1,28 @@
 <?php
-    $pageTitle = "Material Type";
-    $currentPage = "material_type";
-    $headerTitle = "Manage Material Types";
+    $pageTitle = "Lamination";
+    $currentPage = "lamination";
+    $headerTitle = "Manage Laminations";
 
     include 'include/header.php';
 
-    $table = "tbl_material_type";
-    $redirection_url = "material_type.php";
+    $table = "tbl_lamination";
+    $redirection_url = "lamination.php";
+
+    // Ensure table exists
+    $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$table` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `name` varchar(255) NOT NULL,
+        `contact_number` varchar(255) NOT NULL,
+        `status` enum('active','deactive') DEFAULT 'active',
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_by` int(11) DEFAULT NULL,
+        `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_by` int(11) DEFAULT NULL,
+        `deleted_at` timestamp NULL DEFAULT NULL,
+        `is_deleted` tinyint(1) DEFAULT 0,
+        PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $mode = $_REQUEST['mode'] ?? '';
     $id = isset($_REQUEST['id']) ? intval($_REQUEST['id']) : 0;
@@ -15,20 +31,22 @@
 
     if ($mode === "add" && isset($_POST['btn_submit'])) {
         $name = trim($_POST['name'] ?? '');
+        $contact_number = trim($_POST['contact_number'] ?? '');
         $status = $_POST['status'] ?? 'deactive';
 
-        if ($name === '') {
-            $error = 'Name is required.';
+        if ($name === '' || $contact_number === '') {
+            $error = 'Name and Contact Number are required.';
         } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . addslashes($name) . "' AND is_deleted=0 LIMIT 1");
+            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE contact_number='" . addslashes($contact_number) . "' AND is_deleted=0 LIMIT 1");
             if (!empty($duplicate)) {
-                $error = 'This material type name already exists.';
+                $error = 'This contact number is already used by another lamination.';
             }
         }
 
         if (empty($error)) {
             $add_qry = "INSERT INTO $table SET
                 name='" . addslashes($name) . "',
+                contact_number='" . addslashes($contact_number) . "',
                 status='" . $status . "',
                 created_by='" . $_SESSION['aid'] . "'";
             $ai_db->aiQuery($add_qry);
@@ -38,26 +56,29 @@
 
         $data = [
             'name' => htmlspecialchars($name),
+            'contact_number' => htmlspecialchars($contact_number),
             'status' => $status
         ];
     }
 
     if ($mode === "edit" && isset($_POST['btn_submit'])) {
         $name = trim($_POST['name'] ?? '');
+        $contact_number = trim($_POST['contact_number'] ?? '');
         $status = $_POST['status'] ?? 'deactive';
 
-        if ($name === '') {
-            $error = 'Name is required.';
+        if ($name === '' || $contact_number === '') {
+            $error = 'Name and Contact Number are required.';
         } else {
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . addslashes($name) . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE contact_number='" . addslashes($contact_number) . "' AND is_deleted=0 AND id != '" . intval($id) . "' LIMIT 1");
             if (!empty($duplicate)) {
-                $error = 'This material type name already exists.';
+                $error = 'This contact number is already used by another lamination.';
             }
         }
 
         if (empty($error)) {
             $edit_qry = "UPDATE $table SET
                 name='" . addslashes($name) . "',
+                contact_number='" . addslashes($contact_number) . "',
                 status='" . $status . "',
                 updated_by='" . $_SESSION['aid'] . "'
                 WHERE id='" . intval($id) . "'";
@@ -68,6 +89,7 @@
 
         $data = [
             'name' => htmlspecialchars($name),
+            'contact_number' => htmlspecialchars($contact_number),
             'status' => $status
         ];
     }
@@ -82,7 +104,7 @@
         exit;
     }
 
-    if ($mode === "edit" && $id) {
+    if ($mode === "edit" && $id && !isset($_POST['btn_submit'])) {
         $query = "SELECT * FROM $table WHERE id='" . intval($id) . "' AND is_deleted=0 LIMIT 1";
         $result = $ai_db->aiGetQuery($query);
         $data = isset($result[0]) ? $result[0] : null;
@@ -96,16 +118,17 @@
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
         $offset = ($page - 1) * $limit;
 
-        $filterSessionKey = 'material_type_filters';
+        $filterSessionKey = 'lamination_filters';
         if (isset($_GET['action']) && $_GET['action'] === 'clear_filters') {
             unset($_SESSION[$filterSessionKey]);
-            header('Location: material_type.php');
+            header('Location: lamination.php');
             exit;
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION[$filterSessionKey] = [
                 'filter_name' => trim($_POST['filter_name'] ?? ''),
+                'filter_contact_number' => trim($_POST['filter_contact_number'] ?? ''),
                 'filter_status' => $_POST['filter_status'] ?? ''
             ];
             $page = 1;
@@ -120,6 +143,9 @@
         $where_conditions = ["is_deleted=0"];
         if (!empty($filters['filter_name'])) {
             $where_conditions[] = "name LIKE '%" . addslashes($filters['filter_name']) . "%'";
+        }
+        if (!empty($filters['filter_contact_number'])) {
+            $where_conditions[] = "contact_number LIKE '%" . addslashes($filters['filter_contact_number']) . "%'";
         }
         if (!empty($filters['filter_status']) && $filters['filter_status'] !== '') {
             $where_conditions[] = "status = '" . addslashes($filters['filter_status']) . "'";
@@ -141,21 +167,21 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="fw-bold m-0">
-            <span class="text-muted fw-light">Material Type /</span> <?= $mode ? ucfirst($mode) : 'All Records' ?>
+            <span class="text-muted fw-light">Lamination /</span> <?= $mode ? ucfirst($mode) : 'All Records' ?>
         </h4>
         <?php if (!$mode) { ?>
             <div class="d-flex align-items-center gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-sm rounded-circle btn-filter-toggle <?= !empty($hasActiveFilters) ? 'active' : '' ?>"
-                    data-bs-toggle="collapse" data-bs-target="#materialTypeFilterCollapse" aria-expanded="false"
-                    aria-controls="materialTypeFilterCollapse" aria-label="Toggle Filters" title="Toggle Filters">
+                    data-bs-toggle="collapse" data-bs-target="#laminationFilterCollapse" aria-expanded="false"
+                    aria-controls="laminationFilterCollapse" aria-label="Toggle Filters" title="Toggle Filters">
                     <i class="bi bi-funnel"></i>
                 </button>
-                <a href="material_type.php?mode=add" class="btn btn-gold btn-sm rounded-pill px-3">
+                <a href="lamination.php?mode=add" class="btn btn-gold btn-sm rounded-pill px-3">
                     <i class="bi bi-plus-lg me-1"></i> Add New
                 </a>
             </div>
         <?php } else { ?>
-            <a href="material_type.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <a href="lamination.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
         <?php } ?>
@@ -163,16 +189,21 @@
 
     <?php if (!$mode) { ?>
         <!-- Filter Section -->
-        <div class="collapse mb-3" id="materialTypeFilterCollapse">
+        <div class="collapse mb-3" id="laminationFilterCollapse">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <form method="POST" action="material_type.php" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="filter_name" class="form-label">Material Type Name</label>
+                    <form method="POST" action="lamination.php" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="filter_name" class="form-label">Lamination Name</label>
                             <input type="text" class="form-control" id="filter_name" name="filter_name" 
                                    value="<?= htmlspecialchars($filters['filter_name'] ?? '') ?>" placeholder="Search by Name">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label for="filter_contact_number" class="form-label">Contact Number</label>
+                            <input type="text" class="form-control" id="filter_contact_number" name="filter_contact_number" 
+                                   value="<?= htmlspecialchars($filters['filter_contact_number'] ?? '') ?>" placeholder="Search by Contact Number">
+                        </div>
+                        <div class="col-md-4">
                             <label for="filter_status" class="form-label">Status</label>
                             <select class="form-select" id="filter_status" name="filter_status">
                                 <option value="">All Status</option>
@@ -184,7 +215,7 @@
                             <button type="submit" class="btn btn-primary btn-sm me-2">
                                 <i class="bi bi-search me-1"></i> Filter
                             </button>
-                            <a href="material_type.php?action=clear_filters" class="btn btn-outline-secondary btn-sm">
+                            <a href="lamination.php?action=clear_filters" class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-x-circle me-1"></i> Clear Filters
                             </a>
                         </div>
@@ -201,6 +232,7 @@
                             <tr>
                                 <th width="80">Sr No.</th>
                                 <th>Name</th>
+                                <th>Contact Number</th>
                                 <th>Status</th>
                                 <th width="200" class="text-center">Action</th>
                             </tr>
@@ -211,6 +243,7 @@
                                     <tr>
                                         <td>#<?= $index + 1 ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
+                                        <td><?= htmlspecialchars($row['contact_number']) ?></td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
                                                 <span class="badge bg-success-subtle text-success px-3 rounded-pill">Active</span>
@@ -220,10 +253,10 @@
                                         </td>
                                         <td class="text-center">
                                             <div class="d-flex justify-content-center gap-2">
-                                                <a href="material_type.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
+                                                <a href="lamination.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Edit">
                                                     <i class="bi bi-pencil-square me-1"></i> Edit
                                                 </a>
-                                                <a href="material_type.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this record?')">
+                                                <a href="lamination.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Delete" onclick="return confirm('Are you sure you want to delete this record?')">
                                                     <i class="bi bi-trash me-1"></i> Delete
                                                 </a>
                                             </div>
@@ -232,7 +265,7 @@
                             <?php }
                             } else { ?>
                                 <tr>
-                                    <td colspan="4" class="text-center py-5 text-muted">
+                                    <td colspan="5" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox display-4 d-block mb-3"></i>
                                         No data available. Click "Add New" to get started.
                                     </td>
@@ -250,19 +283,19 @@
                             <nav aria-label="Page navigation">
                                 <ul class="pagination mb-0">
                                     <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                                        <a class="page-link" href="material_type.php?page=<?= $page - 1 ?>" tabindex="-1">Previous</a>
+                                        <a class="page-link" href="lamination.php?page=<?= $page - 1 ?>" tabindex="-1">Previous</a>
                                     </li>
                                     <?php for ($p = 1; $p <= $totalPages; $p++) {
                                         if ($p == 1 || $p == $totalPages || ($p >= $page - 2 && $p <= $page + 2)) { ?>
                                             <li class="page-item <?= ($p == $page) ? 'active' : '' ?>">
-                                                <a class="page-link" href="material_type.php?page=<?= $p ?>"><?= $p ?></a>
+                                                <a class="page-link" href="lamination.php?page=<?= $p ?>"><?= $p ?></a>
                                             </li>
                                         <?php } elseif ($p == $page - 3 || $p == $page + 3) { ?>
                                             <li class="page-item disabled"><span class="page-link">…</span></li>
                                         <?php }
                                     } ?>
                                     <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-                                        <a class="page-link" href="material_type.php?page=<?= $page + 1 ?>">Next</a>
+                                        <a class="page-link" href="lamination.php?page=<?= $page + 1 ?>">Next</a>
                                     </li>
                                 </ul>
                             </nav>
@@ -276,20 +309,25 @@
             <div class="col-lg-12">
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-transparent border-bottom py-3">
-                        <h5 class="fw-bold mb-0"><?= ($mode == 'edit') ? 'Update' : 'Create' ?> Material Type</h5>
+                        <h5 class="fw-bold mb-0"><?= ($mode == 'edit') ? 'Update' : 'Create' ?> Lamination</h5>
                     </div>
-                    <form class="card-body" method="post" action="material_type.php?mode=<?= $mode ?>&id=<?= $id ?>">
-                        <?php if (!empty($error)) { ?>
-                            <div class="alert alert-danger py-2 mb-3" role="alert">
-                                <?= htmlspecialchars($error) ?>
-                            </div>
-                        <?php } ?>
+                    <?php if (!empty($error)) { ?>
+                        <div class="alert alert-danger rounded-3 mx-3 mt-3">
+                            <?= htmlspecialchars($error) ?>
+                        </div>
+                    <?php } ?>
+                    <form class="card-body" method="post" action="lamination.php?mode=<?= $mode ?>&id=<?= $id ?>">
                         <input type="hidden" name="id" value="<?= isset($data['id']) ? $data['id'] : '' ?>">
 
                         <div class="row g-4">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
-                                <input type="text" name="name" class="form-control form-control" placeholder="Enter Material Type Name" value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
+                                <input type="text" name="name" class="form-control form-control" placeholder="Enter Lamination Name" value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Contact Number <span class="text-danger">*</span></label>
+                                <input type="text" name="contact_number" class="form-control form-control" placeholder="Enter Contact Number" value="<?= isset($data['contact_number']) ? htmlspecialchars($data['contact_number']) : '' ?>" required>
                             </div>
 
                             <div class="col-md-6">
@@ -303,9 +341,9 @@
 
                         <div class="mt-4 pt-3 border-top text-end">
                             <button type="submit" name="btn_submit" class="btn btn-gold btn-sm rounded-pill px-4">
-                                <i class="bi bi-check-circle me-1"></i> <?= ($mode == 'edit') ? 'Update Material Type' : 'Save Material Type' ?>
+                                <i class="bi bi-check-circle me-1"></i> <?= ($mode == 'edit') ? 'Update Lamination' : 'Save Lamination' ?>
                             </button>
-                            <a href="material_type.php" class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
+                            <a href="lamination.php" class="btn btn-outline-secondary btn-sm rounded-pill px-4 ms-2">Cancel</a>
                         </div>
                     </form>
                 </div>

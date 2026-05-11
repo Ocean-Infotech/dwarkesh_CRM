@@ -26,7 +26,8 @@ $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHER
 // Fixed queries with JOINs
 $liners = $ai_db->aiGetQuery("SELECT m.id, m.name, m.rate, m.weight FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Liner' AND m.status='active' AND m.is_deleted=0");
 $duplexes = $ai_db->aiGetQuery("SELECT m.id, m.name, m.rate, m.weight FROM tbl_materials m JOIN tbl_material_type mt ON m.material_type_id = mt.id WHERE mt.name='Duplex' AND m.status='active' AND m.is_deleted=0");
-$offsets = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no FROM tbl_customer WHERE is_deleted=0 ORDER BY contact_name ASC");
+$offsets = $ai_db->aiGetQuery("SELECT id, name, contact_number FROM tbl_offset WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+$laminations = $ai_db->aiGetQuery("SELECT id, name, contact_number FROM tbl_lamination WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 
 // Helper to clean brand names from JSON or array
 function clean_brand_names($value)
@@ -228,16 +229,8 @@ if (isset($_POST['btn_submit'])) {
     }
     $offset_image_path = $existing_offset_image;
 
-    if (
-        $order_no === '' || $customer_id === 0 || $brand_name === '' || $product_id === 0 ||
-        $box_qty <= 0 || $upps <= 0 || $rate <= 0 || $costing_id === 0 ||
-        $sheet_length <= 0 || $sheet_width <= 0 ||
-        $liner_delivery_id === 0 || $liner_delivery_phone === '' || $top_count === '' ||
-        $duplex_delivery_id === 0 || $duplex_delivery_phone === ''
-    ) {
+    if ($customer_id === 0 || $box_qty <= 0) {
         $error = "Please fill all required fields.";
-    } elseif (empty($liner_items) || empty($duplex_items)) {
-        $error = "Please add at least one liner and one duplex item.";
     } elseif ($mode === 'add') {
         $duplicate_order = $ai_db->aiGetQuery("SELECT id FROM $table WHERE order_no='" . addslashes($order_no) . "' AND is_deleted=0 LIMIT 1");
         if (!empty($duplicate_order)) {
@@ -572,7 +565,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 <div class="row g-4">
                     <!-- Row 1 -->
                     <div class="col-md-4">
-                        <label class="form-label">Customer</label>
+                        <label class="form-label">Customer <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <select name="customer_id" id="customer_id" class="form-select" required>
                                 <option value="">Select Customer</option>
@@ -587,29 +580,29 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                         </div>
                     </div>
                     <div class="col-md-5">
-                        <label class="form-label">Box Quantity</label>
+                        <label class="form-label">Box Quantity <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <input type="number" step="0.01" min="0.01" name="box_qty" class="form-control"
                                 placeholder="PCS" value="<?= htmlspecialchars($data['box_qty'] ?? '') ?>" required>
                             <span class="input-group-text">PCS</span>
-                            <select name="box_qty_unit" class="form-select" required>
+                            <select name="box_qty_unit" class="form-select">
                                 <option value="PCS" <?= (isset($data['box_qty_unit']) && $data['box_qty_unit'] == 'PCS') ? 'selected' : '' ?>>XXXX</option>
                             </select>
                             <input type="number" step="0.01" min="0.01" name="upps" class="form-control" placeholder="Upps"
-                                value="<?= htmlspecialchars($data['upps'] ?? '1') ?>" required>
+                                value="<?= htmlspecialchars($data['upps'] ?? '1') ?>">
                             <span class="input-group-text">Upps</span>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Rate</label>
                         <input type="number" step="0.01" min="0.01" name="rate" class="form-control"
-                            value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate" required>
+                            value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate">
                     </div>
 
                     <!-- Row 2 -->
                     <div class="col-md-4">
                         <label class="form-label">Brand</label>
-                        <select name="brand_name" id="brand_name" class="form-select" required>
+                        <select name="brand_name" id="brand_name" class="form-select">
                             <option value="">Select Brand</option>
                         </select>
                     </div>
@@ -621,14 +614,14 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                     <div class="col-md-4">
                         <label class="form-label">Order Date</label>
                         <input type="date" name="order_date" class="form-control"
-                            value="<?= htmlspecialchars($data['order_date'] ?? date('Y-m-d')) ?>" required>
+                            value="<?= htmlspecialchars($data['order_date'] ?? date('Y-m-d')) ?>">
                     </div>
 
                     <!-- Row 3 -->
                     <div class="col-md-4">
                         <label class="form-label">BOX Name</label>
                         <div class="input-group">
-                            <select name="product_id" id="product_id" class="form-select" required>
+                            <select name="product_id" id="product_id" class="form-select">
                                 <option value="">Select a Box</option>
                                 <?php foreach ($products as $p) { ?>
                                     <option value="<?= $p['id'] ?>" <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
@@ -642,7 +635,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                     </div>
                     <div class="col-md-8">
                         <label class="form-label">Costing Number</label>
-                        <select name="costing_id" id="costing_id" class="form-select" required>
+                        <select name="costing_id" id="costing_id" class="form-select">
                             <option value="">Select Costing</option>
                             <?php foreach ($costings as $cost) { ?>
                                 <option value="<?= $cost['id'] ?>" data-customer="<?= $cost['customer_id'] ?>"
@@ -661,12 +654,11 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <div class="sheet-input-box">
                                     <input type="number" step="0.01" min="0.01" name="sheet_length"
                                         class="sheet-input-field" placeholder="Length"
-                                        value="<?= htmlspecialchars($data['sheet_length'] ?? '') ?>" required>
+                                        value="<?= htmlspecialchars($data['sheet_length'] ?? '') ?>">
                                 </div>
                                 <div class="sheet-input-box">
                                     <input type="number" step="0.01" min="0.01" name="sheet_width" class="sheet-input-field"
-                                        placeholder="Width" value="<?= htmlspecialchars($data['sheet_width'] ?? '') ?>"
-                                        required>
+                                        placeholder="Width" value="<?= htmlspecialchars($data['sheet_width'] ?? '') ?>">
                                 </div>
                             </div>
                         </div>
@@ -737,13 +729,13 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Liner Delivery To</label>
                                                 <select name="liner_delivery_id" id="liner_delivery_id"
-                                                    class="form-select form-select-sm" required>
-                                                    <option value="">----- Select Delivery -----</option>
-                                                    <?php foreach ($customers as $c) { ?>
-                                                        <option value="<?= $c['id'] ?>"
-                                                            data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>"
-                                                            <?= (isset($data['liner_delivery_id']) && $data['liner_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                    class="form-select form-select-sm">
+                                                    <option value="">----- Select Offset -----</option>
+                                                    <?php foreach ($offsets as $o) { ?>
+                                                        <option value="<?= $o['id'] ?>"
+                                                            data-phone="<?= htmlspecialchars($o['contact_number'] ?? '') ?>"
+                                                            <?= (isset($data['liner_delivery_id']) && $data['liner_delivery_id'] == $o['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($o['name']) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -752,14 +744,13 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                 <label class="form-label small mb-1">Liner Delivery Phone</label>
                                                 <input type="text" id="liner_delivery_phone" name="liner_delivery_phone"
                                                     class="form-control form-control-sm" placeholder="Liner Delivery Phone"
-                                                    value="<?= htmlspecialchars($data['liner_delivery_phone'] ?? '') ?>"
-                                                    required>
+                                                    value="<?= htmlspecialchars($data['liner_delivery_phone'] ?? '') ?>">
                                             </div>
                                             <div class="col-md-12">
                                                 <label class="form-label small mb-1">Top Count</label>
                                                 <input type="text" name="top_count" class="form-control form-control-sm"
                                                     placeholder="top count"
-                                                    value="<?= htmlspecialchars($data['top_count'] ?? '') ?>" required>
+                                                    value="<?= htmlspecialchars($data['top_count'] ?? '') ?>">
                                             </div>
                                         </div>
                                     </div>
@@ -828,13 +819,13 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <div class="col-md-6">
                                                 <label class="form-label small mb-1">Duplex Delivery To</label>
                                                 <select name="duplex_delivery_id" id="duplex_delivery_id"
-                                                    class="form-select form-select-sm" required>
+                                                    class="form-select form-select-sm">
                                                     <option value="">----- Select Offset -----</option>
                                                     <?php foreach ($offsets as $o) { ?>
                                                         <option value="<?= $o['id'] ?>"
-                                                            data-phone="<?= htmlspecialchars($o['phone_no'] ?? '') ?>"
+                                                            data-phone="<?= htmlspecialchars($o['contact_number'] ?? '') ?>"
                                                             <?= (isset($data['duplex_delivery_id']) && $data['duplex_delivery_id'] == $o['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($o['contact_name']) ?>
+                                                            <?= htmlspecialchars($o['name']) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -843,8 +834,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                 <label class="form-label small mb-1">Duplex Delivery Phone</label>
                                                 <input type="text" id="duplex_delivery_phone" name="duplex_delivery_phone"
                                                     class="form-control form-control-sm" placeholder="Duplex Delivery Phone"
-                                                    value="<?= htmlspecialchars($data['duplex_delivery_phone'] ?? '') ?>"
-                                                    required>
+                                                    value="<?= htmlspecialchars($data['duplex_delivery_phone'] ?? '') ?>">
                                             </div>
                                         </div>
                                     </div>
@@ -868,7 +858,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                     <option value="">----- Select Offset-----</option>
                                                     <?php foreach ($offsets as $o) { ?>
                                                         <option value="<?= $o['id'] ?>" <?= (isset($data['printing_by_id']) && $data['printing_by_id'] == $o['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($o['contact_name']) ?>
+                                                            <?= htmlspecialchars($o['name']) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -918,11 +908,11 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                 <select name="print_delivery_id" id="print_delivery_id"
                                                     class="form-select form-select-sm">
                                                     <option value="">----- Select Delivery-----</option>
-                                                    <?php foreach ($customers as $c) { ?>
-                                                        <option value="<?= $c['id'] ?>"
-                                                            data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>"
-                                                            <?= (isset($data['print_delivery_id']) && $data['print_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                    <?php foreach ($offsets as $o) { ?>
+                                                        <option value="<?= $o['id'] ?>"
+                                                            data-phone="<?= htmlspecialchars($o['contact_number'] ?? '') ?>"
+                                                            <?= (isset($data['print_delivery_id']) && $data['print_delivery_id'] == $o['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($o['name']) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -1013,12 +1003,12 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                 <label class="form-label small mb-1">Laminas Delivery To</label>
                                                 <select name="laminas_delivery_id" id="laminas_delivery_id"
                                                     class="form-select form-select-sm">
-                                                    <option value="">----- Select Delivery-----</option>
-                                                    <?php foreach ($customers as $c) { ?>
-                                                        <option value="<?= $c['id'] ?>"
-                                                            data-phone="<?= htmlspecialchars($c['phone_no'] ?? '') ?>"
-                                                            <?= (isset($data['laminas_delivery_id']) && $data['laminas_delivery_id'] == $c['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($c['contact_name']) ?>
+                                                    <option value="">----- Select Lamination -----</option>
+                                                    <?php foreach ($laminations as $l) { ?>
+                                                        <option value="<?= $l['id'] ?>"
+                                                            data-phone="<?= htmlspecialchars($l['contact_number'] ?? '') ?>"
+                                                            <?= (isset($data['laminas_delivery_id']) && $data['laminas_delivery_id'] == $l['id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($l['name']) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -1481,6 +1471,12 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         const productStockMap = <?= json_encode(array_column($products, 'stock_qty', 'id')) ?>;
         const customerBrandsMap = <?= json_encode($customerBrandsMap) ?>;
         const currentBrand = "<?= htmlspecialchars($data['brand_name'] ?? '') ?>";
+        
+        <?php if (!empty($error)) { ?>
+            if (typeof showToast === 'function') {
+                showToast('Validation Error', "<?= addslashes($error) ?>", 'error');
+            }
+        <?php } ?>
 
         const custSelect = document.getElementById('customer_id');
         const brandSelect = document.getElementById('brand_name');
@@ -1947,9 +1943,16 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 
         if (orderForm) {
             orderForm.addEventListener('submit', function (event) {
-                if (!linerItems.length || !duplexItems.length) {
+                const cid = custSelect ? custSelect.value : '';
+                const bqty = parseFloat(document.getElementsByName('box_qty')[0]?.value || 0);
+
+                if (!cid || bqty <= 0) {
                     event.preventDefault();
-                    alert('Please add at least one liner and one duplex item.');
+                    if (typeof showToast === 'function') {
+                        showToast('Missing Details', 'Please select a Customer and enter Box Quantity.', 'error');
+                    } else {
+                        alert('Customer and Box Quantity are required.');
+                    }
                     return;
                 }
 

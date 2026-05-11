@@ -236,4 +236,24 @@ document.addEventListener('DOMContentLoaded', function () {
             this.classList.remove('was-validated');
         });
     }
+
+    // Global Enter Key Submission Prevention
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            const activeElement = document.activeElement;
+            const form = activeElement ? activeElement.closest('form') : null;
+            if (form) {
+                // If the active element is NOT a submit button, prevent submission
+                const isSubmitButton = activeElement.type === 'submit' || 
+                                     activeElement.classList.contains('btn-submit') || 
+                                     activeElement.name.toLowerCase().includes('submit') ||
+                                     activeElement.id.toLowerCase().includes('submit');
+                
+                if (!isSubmitButton) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        }
+    });
 });

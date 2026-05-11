@@ -145,6 +145,25 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
+    // 7.1 Lamination Table
+    "CREATE TABLE IF NOT EXISTS `tbl_lamination` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `name` varchar(255) NOT NULL,
+        `contact_number` varchar(20) DEFAULT NULL,
+        `status` enum('active','deactive') DEFAULT 'active',
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_by` int(11) DEFAULT NULL,
+        `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_by` int(11) DEFAULT NULL,
+        `deleted_at` timestamp NULL DEFAULT NULL,
+        `is_deleted` tinyint(1) DEFAULT 0,
+        PRIMARY KEY (`id`),
+        KEY `created_by` (`created_by`),
+        KEY `updated_by` (`updated_by`),
+        KEY `deleted_by` (`deleted_by`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
     // 8. Costings Table
     "CREATE TABLE IF NOT EXISTS `tbl_costings` (
         `id` int(11) NOT NULL AUTO_INCREMENT,

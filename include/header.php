@@ -56,6 +56,9 @@ if (!isset($_SESSION['aid'])) {
                 <li class="<?php echo ($currentPage == 'offset') ? 'active' : ''; ?>">
                     <a href="offset.php"><i class="bi bi-gear"></i> Offset</a>
                 </li>
+                <li class="<?php echo ($currentPage == 'lamination') ? 'active' : ''; ?>">
+                    <a href="lamination.php"><i class="bi bi-layers-half"></i> Lamination</a>
+                </li>
                 <li class="<?php echo ($currentPage == 'costings') ? 'active' : ''; ?>">
                     <a href="costings.php"><i class="bi bi-calculator"></i> Costings</a>
                 </li>
