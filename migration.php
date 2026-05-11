@@ -218,7 +218,50 @@ $queries = [
         KEY `deleted_by` (`deleted_by`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
 
-    // 9. Orders Table
+    // 9. Quotations Table
+    "CREATE TABLE IF NOT EXISTS `tbl_quotations` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `quotation_no` varchar(50) NOT NULL,
+        `quotation_date` date DEFAULT NULL,
+        `valid_till` date DEFAULT NULL,
+        `customer_id` int(11) DEFAULT NULL,
+        `customer_name` varchar(255) DEFAULT NULL,
+        `total_taxable` decimal(10,2) DEFAULT '0.00',
+        `total_amount` decimal(10,2) DEFAULT '0.00',
+        `remark` text,
+        `status` enum('pending','accepted','rejected','expired') DEFAULT 'pending',
+        `created_by` int(11) DEFAULT NULL,
+        `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_by` int(11) DEFAULT NULL,
+        `updated_at` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_by` int(11) DEFAULT NULL,
+        `deleted_at` timestamp NULL DEFAULT NULL,
+        `is_deleted` tinyint(1) DEFAULT 0,
+        PRIMARY KEY (`id`),
+        KEY `customer_id` (`customer_id`),
+        KEY `created_by` (`created_by`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // 9.1 Quotation Items Table
+    "CREATE TABLE IF NOT EXISTS `tbl_quotation_items` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `quotation_id` int(11) NOT NULL,
+        `product_id` int(11) DEFAULT NULL,
+        `product_name` varchar(255) DEFAULT NULL,
+        `description` text,
+        `qty` decimal(10,2) DEFAULT '1.00',
+        `unit` varchar(50) DEFAULT 'nos',
+        `rate` decimal(10,2) DEFAULT '0.00',
+        `taxable_amount` decimal(10,2) DEFAULT '0.00',
+        `total_amount` decimal(10,2) DEFAULT '0.00',
+        `costing_id` int(11) DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        KEY `quotation_id` (`quotation_id`),
+        KEY `product_id` (`product_id`),
+        KEY `costing_id` (`costing_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+
+    // 10. Orders Table
     "CREATE TABLE IF NOT EXISTS `tbl_orders` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `order_no` varchar(50) NOT NULL,
@@ -333,7 +376,8 @@ $queries = [
     "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_pcs` varchar(255) DEFAULT NULL AFTER `bill_photo_price` ",
     "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_rixa_bhadu` varchar(255) DEFAULT NULL AFTER `bill_pcs` ",
     "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_borrow_charge` varchar(255) DEFAULT NULL AFTER `bill_rixa_bhadu` ",
-    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_remark` text AFTER `bill_borrow_charge` "
+    "ALTER TABLE `tbl_orders` ADD COLUMN IF NOT EXISTS `bill_remark` text AFTER `bill_borrow_charge` ",
+    "ALTER TABLE `tbl_quotations` ADD COLUMN IF NOT EXISTS `valid_till` date DEFAULT NULL AFTER `quotation_date` "
 ];
 
 echo "<h2>Starting Migration...</h2>";

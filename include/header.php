@@ -62,6 +62,9 @@ if (!isset($_SESSION['aid'])) {
                 <li class="<?php echo ($currentPage == 'costings') ? 'active' : ''; ?>">
                     <a href="costings.php"><i class="bi bi-calculator"></i> Costings</a>
                 </li>
+                <li class="<?php echo ($currentPage == 'quotations') ? 'active' : ''; ?>">
+                    <a href="quotations.php"><i class="bi bi-file-earmark-text"></i> Quotations</a>
+                </li>
                 <li class="<?php echo ($currentPage == 'orders') ? 'active' : ''; ?>">
                     <a href="orders.php"><i class="bi bi-cart-check"></i> Orders</a>
                 </li>
