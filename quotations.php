@@ -8,6 +8,7 @@
     require_once 'root/schema_bootstrap.php';
     dwarkesh_ensure_core_tables($ai_db);
     // Automatic DB Fix for missing columns
+    $ai_db->aiQuery("ALTER TABLE tbl_quotations MODIFY COLUMN valid_till date NULL");
     $ai_db->aiQuery("ALTER TABLE tbl_quotations ADD COLUMN IF NOT EXISTS total_taxable decimal(10,2) DEFAULT 0.00 AFTER customer_name");
     $ai_db->aiQuery("ALTER TABLE tbl_quotations ADD COLUMN IF NOT EXISTS total_amount decimal(10,2) DEFAULT 0.00 AFTER total_taxable");
     $ai_db->aiQuery("ALTER TABLE tbl_quotation_items ADD COLUMN IF NOT EXISTS taxable_amount decimal(10,2) DEFAULT 0.00 AFTER rate");
@@ -68,12 +69,14 @@
         }
 
         if (empty($error)) {
+            $valid_till_val = !empty($valid_till) ? "'" . addslashes($valid_till) . "'" : "NULL";
+
             if ($mode === "add") {
                 $quotation_no = quotation_generate_no($ai_db);
                 $add_qry = "INSERT INTO $table SET
                     quotation_no='" . addslashes($quotation_no) . "',
                     quotation_date='" . addslashes($quotation_date) . "',
-                    valid_till='" . addslashes($valid_till) . "',
+                    valid_till=$valid_till_val,
                     customer_id='" . $customer_id . "',
                     customer_name='" . addslashes($customer_name) . "',
                     total_taxable='" . $total_taxable . "',
@@ -86,7 +89,7 @@
                 $quotation_id = $id;
                 $edit_qry = "UPDATE $table SET
                     quotation_date='" . addslashes($quotation_date) . "',
-                    valid_till='" . addslashes($valid_till) . "',
+                    valid_till=$valid_till_val,
                     customer_id='" . $customer_id . "',
                     customer_name='" . addslashes($customer_name) . "',
                     total_taxable='" . $total_taxable . "',
@@ -156,20 +159,6 @@
 ?>
 
 <div class="container-fluid py-4">
-    <?php if (isset($_GET['msg'])) {
-        $msg = $_GET['msg'];
-        $alertClass = 'success';
-        $message = '';
-        if ($msg == 1) $message = 'Quotation created successfully!';
-        if ($msg == 2) $message = 'Quotation updated successfully!';
-        if ($msg == 3) $message = 'Quotation deleted successfully!';
-        if ($message) { ?>
-            <div class="alert alert-<?= $alertClass ?> alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i> <?= $message ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-    <?php }
-    } ?>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="fw-bold m-0">
@@ -212,14 +201,14 @@
                                         <td>Rs. <?= number_format($row['total_amount'], 2) ?></td>
                                         <td class="text-center">
                                             <div class="d-flex justify-content-center gap-2">
-                                                <a href="quotation_print.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill px-3">
-                                                    <i class="bi bi-printer me-1"></i> Print
+                                                <a href="quotations.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-circle" title="Edit" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-pencil-square"></i>
                                                 </a>
-                                                <a href="quotations.php?mode=edit&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                                    <i class="bi bi-pencil-square me-1"></i> Edit
+                                                <a href="quotations.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-circle" title="Delete" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;" onclick="return confirm('Are you sure?')">
+                                                    <i class="bi bi-trash"></i>
                                                 </a>
-                                                <a href="quotations.php?mode=delete&id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('Are you sure?')">
-                                                    <i class="bi bi-trash me-1"></i> Delete
+                                                <a href="quotation_print.php?id=<?= $row['id'] ?>" target="_blank" class="btn btn-sm btn-outline-dark rounded-circle" title="Print" style="width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-printer"></i>
                                                 </a>
                                             </div>
                                         </td>
@@ -346,41 +335,22 @@
                             </table>
                         </div>
 
-                        <div class="row mt-4 mb-4 align-items-start">
-                            <!-- Column 1: Bank Details -->
-                            <div class="col-md-4">
-                                <div class="ps-2">
-                                    <label class="form-label fw-bold mb-1 text-uppercase small">Bank Details :</label>
-                                    <div class="small text-muted" style="font-size: 0.85rem;">
-                                        <div>Bank Name : <span class="fw-bold text-dark">KOTAK MAHINDRA BANK</span></div>
-                                        <div>Branch : <span class="fw-bold text-dark">JIMKHANA BRANCH</span></div>
-                                        <div>Account No. : <span class="fw-bold text-dark">9687009157</span></div>
-                                        <div>IFSC : <span class="fw-bold text-dark">KKBK0002795</span></div>
-                                    </div>
-                                </div>
+                        <!-- Quotation Summary Section -->
+                        <div class="row mt-4 mb-4 g-0 border rounded-3 overflow-hidden shadow-sm">
+                            <div class="col-md-7 p-4 bg-light-subtle">
+                                <label class="form-label fw-bold mb-2 small text-uppercase text-muted" style="letter-spacing: 0.5px;">Total Quotation Amount in Words</label>
+                                <div class="fw-bold text-dark h6 mb-0" id="amount_in_words">Zero Rupees Only</div>
                             </div>
-                            
-                            <!-- Column 2: Amount in Words -->
-                            <div class="col-md-4">
-                                <div class="px-2">
-                                    <label class="form-label fw-bold mb-1 small text-uppercase">Total Quotation Amount in Words :</label>
-                                    <div class="fw-bold text-muted small" id="amount_in_words" style="font-size: 0.85rem;">Zero Rupees Only</div>
+                            <div class="col-md-5 p-4 bg-white border-start">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="text-muted small fw-bold text-uppercase">Total Taxable Value</span>
+                                    <span class="fw-bold text-dark" id="summary_taxable"><?= number_format($data['total_taxable'] ?? 0, 2) ?></span>
+                                    <input type="hidden" name="total_taxable" id="total_taxable" value="<?= $data['total_taxable'] ?? 0 ?>">
                                 </div>
-                            </div>
-                            
-                            <!-- Column 3: Totals -->
-                            <div class="col-md-4">
-                                <div class="pe-2 text-end">
-                                    <div class="row mb-2">
-                                        <div class="col-8 text-muted small">Total Amount before Tax (₹)</div>
-                                        <div class="col-4 fw-bold small" id="summary_taxable"><?= number_format($data['total_taxable'] ?? 0, 2) ?></div>
-                                        <input type="hidden" name="total_taxable" id="total_taxable" value="<?= $data['total_taxable'] ?? 0 ?>">
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-8 fw-bold small">Grand Total (₹)</div>
-                                        <div class="col-4 fw-bold text-gold" id="summary_amount"><?= number_format($data['total_amount'] ?? 0, 2) ?></div>
-                                        <input type="hidden" name="total_amount" id="total_amount" value="<?= $data['total_amount'] ?? 0 ?>">
-                                    </div>
+                                <div class="d-flex justify-content-between align-items-center pt-3 border-top border-2">
+                                    <span class="fw-bold text-dark h5 mb-0">Grand Total (₹)</span>
+                                    <span class="fw-bold h2 mb-0 text-gold" id="summary_amount"><?= number_format($data['total_amount'] ?? 0, 2) ?></span>
+                                    <input type="hidden" name="total_amount" id="total_amount" value="<?= $data['total_amount'] ?? 0 ?>">
                                 </div>
                             </div>
                         </div>
@@ -389,11 +359,6 @@
 
                         <div class="d-flex gap-2">
                             <button type="submit" name="btn_submit" class="btn btn-gold px-5 rounded-pill">Save Quotation</button>
-                            <?php if ($mode === 'edit' && isset($id)) { ?>
-                                <a href="quotation_print.php?id=<?= $id ?>" target="_blank" class="btn btn-outline-dark px-4 rounded-pill">
-                                    <i class="bi bi-printer me-1"></i> Print
-                                </a>
-                            <?php } ?>
                             <a href="quotations.php" class="btn btn-outline-secondary px-5 rounded-pill">Cancel</a>
                         </div>
                     </div>

@@ -31,7 +31,8 @@ $customer = $ai_db->aiGetQuery("SELECT * FROM tbl_customer WHERE id=" . $quotati
 
 // Function to convert number to words
 function numberToWords($number) {
-    $fraction = round(($number % 1) * 100);
+    $number = floatval($number);
+    $fraction = round(($number - floor($number)) * 100);
     $fullNumber = floor($number);
     
     $firstPart = convertToWords($fullNumber) . " Rupees";
@@ -156,7 +157,7 @@ $grand_total_words = numberToWords($quotation['total_amount']);
                     </div>
                 </div>
                 <div class="col-5 text-end">
-                    <img src="assets/logo/logo.png" class="logo-img" alt="Dwarkesh Packaging">
+                    <img src="assets/images/quotation_header_logo.png" class="logo-img" alt="Dwarkesh Packaging">
                 </div>
             </div>
         </div>
@@ -180,12 +181,24 @@ $grand_total_words = numberToWords($quotation['total_amount']);
                 </div>
             </div>
             <div class="col-6 text-end">
-                <div class="info-box">
-                    <div><span class="info-label fw-bold text-dark">Quotation No. :</span> <strong><?= $quotation['quotation_no'] ?></strong></div>
-                    <div><span class="info-label fw-bold text-dark">Date :</span> <strong><?= date('d-M-Y', strtotime($quotation['quotation_date'])) ?></strong></div>
-                    <?php if ($quotation['valid_till']) { ?>
-                        <div><span class="info-label fw-bold text-dark">Valid till :</span> <strong><?= date('d-M-Y', strtotime($quotation['valid_till'])) ?></strong></div>
-                    <?php } ?>
+                <div class="info-box d-inline-block text-start">
+                    <table class="w-100">
+                        <tr>
+                            <td class="info-label text-dark fw-bold" style="width: 110px;">Quotation No.</td>
+                            <td class="fw-bold px-2">:</td>
+                            <td class="fw-bold text-dark"><?= $quotation['quotation_no'] ?></td>
+                        </tr>
+                        <tr>
+                            <td class="info-label text-dark fw-bold">Date</td>
+                            <td class="fw-bold px-2">:</td>
+                            <td class="fw-bold text-dark"><?= date('d-M-Y', strtotime($quotation['quotation_date'])) ?></td>
+                        </tr>
+                        <tr>
+                            <td class="info-label text-dark fw-bold">Valid till</td>
+                            <td class="fw-bold px-2">:</td>
+                            <td class="fw-bold text-dark"><?= (!empty($quotation['valid_till']) && $quotation['valid_till'] !== '0000-00-00') ? date('d-M-Y', strtotime($quotation['valid_till'])) : '-' ?></td>
+                        </tr>
+                    </table>
                 </div>
             </div>
         </div>
@@ -220,78 +233,80 @@ $grand_total_words = numberToWords($quotation['total_amount']);
             </tbody>
         </table>
 
-        <!-- Summary -->
-        <div class="summary-section">
-            <div class="row">
-                <div class="col-4">
-                    <div class="bank-details">
-                        <div class="fw-bold mb-1 text-uppercase small" style="text-decoration: underline;">Bank Details :</div>
-                        <div><span class="fw-bold">Bank Name :</span> <span>KOTAK MAHINDRA BANK</span></div>
-                        <div><span class="fw-bold">Branch :</span> <span>JIMKHANA BRANCH</span></div>
-                        <div><span class="fw-bold">Account No. :</span> <span>9687009157</span></div>
-                        <div><span class="fw-bold">IFSC :</span> <span>KKBK0002795</span></div>
+        <!-- Summary Row 1: Words and Totals -->
+        <div class="summary-section mt-4 border-top border-bottom py-3">
+            <div class="row align-items-center">
+                <div class="col-7 border-end px-4">
+                    <div class="fw-bold mb-1 text-uppercase small" style="text-decoration: underline; font-size: 11px;">Total Amount in Words :</div>
+                    <div class="fw-bold text-dark small mt-2"><?= $grand_total_words ?></div>
+                </div>
+                <div class="col-5 px-4 text-end">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold text-muted small">Total Amount before Tax (₹)</span>
+                        <span class="fw-bold small"><?= number_format($quotation['total_taxable'], 2) ?></span>
                     </div>
-                </div>
-                <div class="col-4 text-center px-4">
-                    <div class="fw-bold mb-1 text-uppercase small" style="text-decoration: underline;">Total Amount in Words :</div>
-                    <div class="fw-bold text-muted small mt-2"><?= $grand_total_words ?></div>
-                </div>
-                <div class="col-4">
-                    <div class="total-box">
-                        <div class="total-row">
-                            <span class="fw-bold text-dark">Total Amount before Tax (₹)</span>
-                            <span class="fw-bold"><?= number_format($quotation['total_taxable'], 2) ?></span>
-                        </div>
-                        <div class="grand-total-row">
-                            <span class="fw-bold text-dark">Grand Total (₹)</span>
-                            <span><?= number_format($quotation['total_amount'], 2) ?></span>
-                        </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top border-2 border-dark mt-2">
+                        <span class="fw-bold text-dark h6 mb-0">Grand Total (₹)</span>
+                        <span class="fw-bold h4 mb-0"><?= number_format($quotation['total_amount'], 2) ?></span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- GST Footer -->
-        <div class="footer-gst">
-            <div class="row">
-                <div class="col-8">
-                    <table class="table table-bordered table-sm m-0 text-center" style="font-size: 10px;">
-                        <thead>
-                            <tr>
-                                <th>HSN/SAC Code</th>
-                                <th>Taxable (₹)</th>
-                                <th>CGST %</th>
-                                <th>CGST (₹)</th>
-                                <th>SGST %</th>
-                                <th>SGST (₹)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($hsn_summary as $hsn => $totals) { 
-                                $split_tax = $totals['tax'] / 2;
-                            ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($hsn) ?></td>
-                                    <td><?= number_format($totals['taxable'], 2) ?></td>
-                                    <td>2.50%</td>
-                                    <td><?= number_format($split_tax, 2) ?></td>
-                                    <td>2.50%</td>
-                                    <td><?= number_format($split_tax, 2) ?></td>
-                                </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="col-4 signature-section">
-                    <div class="signature-box">
-                        <div class="small mb-1">For, Dwarkesh Packaging</div>
-                        <div style="height: 60px;">
-                            <!-- Placeholder for signature image if available -->
+        <!-- Summary Row 2: Bank and Signature -->
+        <div class="footer-section mt-4">
+            <div class="row align-items-end">
+                <div class="col-7">
+                    <div class="bank-details">
+                        <div class="fw-bold mb-1 text-uppercase small" style="text-decoration: underline; font-size: 11px;">Bank Details :</div>
+                        <div class="small mt-2">
+                            <strong>Bank Name :</strong> KOTAK MAHINDRA BANK<br>
+                            <strong>Branch :</strong> JIMKHANA BRANCH<br>
+                            <strong>Account No. :</strong> 9687009157<br>
+                            <strong>IFSC :</strong> KKBK0002795
                         </div>
-                        <div class="signature-line">Authorised Signatory</div>
                     </div>
                 </div>
+                <div class="col-5 text-end">
+                        <div class="signature-box d-inline-block text-center" style="width: 200px;">
+                            <div class="small mb-1">For, Dwarkesh Packaging</div>
+                            <div class="my-2">
+                                <img src="assets/images/sign.png" alt="Signature" style="height: 70px; width: auto; object-fit: contain; mix-blend-mode: multiply;">
+                            </div>
+                            <div class="fw-bold small">Authorised Signatory</div>
+                        </div>
+                </div>
             </div>
+        </div>
+
+        <!-- Summary Row 3: GST Summary Table -->
+        <div class="footer-gst mt-4 pt-3 border-top">
+            <table class="table table-bordered table-sm m-0 text-center" style="font-size: 10px; border: 1.5px solid #333;">
+                <thead>
+                    <tr class="bg-light">
+                        <th style="border: 1px solid #333;">HSN/SAC CODE</th>
+                        <th style="border: 1px solid #333;">TAXABLE (₹)</th>
+                        <th style="border: 1px solid #333;">CGST %</th>
+                        <th style="border: 1px solid #333;">CGST (₹)</th>
+                        <th style="border: 1px solid #333;">SGST %</th>
+                        <th style="border: 1px solid #333;">SGST (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($hsn_summary as $hsn => $totals) { 
+                        $split_tax = $totals['tax'] / 2;
+                    ?>
+                        <tr>
+                            <td style="border: 1px solid #333;"><?= htmlspecialchars($hsn) ?></td>
+                            <td style="border: 1px solid #333;"><?= number_format($totals['taxable'], 2) ?></td>
+                            <td style="border: 1px solid #333;">2.50%</td>
+                            <td style="border: 1px solid #333;"><?= number_format($split_tax, 2) ?></td>
+                            <td style="border: 1px solid #333;">2.50%</td>
+                            <td style="border: 1px solid #333;"><?= number_format($split_tax, 2) ?></td>
+                        </tr>
+                    <?php } ?>
+                </tbody>
+            </table>
         </div>
 
         <div class="footer-note">
