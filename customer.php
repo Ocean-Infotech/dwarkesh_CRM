@@ -344,7 +344,7 @@
 
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Phone No. <span class="text-danger">*</span></label>
-                                <input type="text" name="phone_no" class="form-control form-control" placeholder="Enter Phone Number" value="<?= isset($data['phone_no']) ? htmlspecialchars($data['phone_no']) : '' ?>" required>
+                                <input type="text" name="phone_no" class="form-control form-control" placeholder="Enter 10 Digit Phone Number" value="<?= isset($data['phone_no']) ? htmlspecialchars($data['phone_no']) : '' ?>" required maxlength="10" minlength="10" pattern="\d{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);">
                             </div>
 
                             <div class="col-6">
