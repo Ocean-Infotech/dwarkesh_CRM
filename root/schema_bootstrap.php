@@ -165,6 +165,7 @@ if (!function_exists('dwarkesh_ensure_core_tables')) {
         ];
 
         // Ensure stock columns exist
+        $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `customer_id` int(11) DEFAULT NULL AFTER `id` ");
         $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `mapped_material_id` int(11) DEFAULT NULL AFTER `description` ");
         $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `usage_qty` decimal(10,2) DEFAULT '0.00' AFTER `mapped_material_id` ");
         $ai_db->aiQuery("ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `usage_qty` ");

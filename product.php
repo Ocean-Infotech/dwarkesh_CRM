@@ -21,6 +21,13 @@ $bom_items = [];
 $material_options = [];
 $selected_product = null;
 $all_materials = $ai_db->aiGetQuery("SELECT id, name FROM tbl_materials WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+$all_customers = $ai_db->aiGetQuery("SELECT id, contact_name, status FROM tbl_customer WHERE is_deleted=0 ORDER BY contact_name ASC");
+
+// Ensure customer mapping column exists for product.
+$product_customer_col = $ai_db->aiGetQuery("SHOW COLUMNS FROM `$table` LIKE 'customer_id'");
+if (empty($product_customer_col)) {
+    $ai_db->aiQuery("ALTER TABLE `$table` ADD `customer_id` int(11) DEFAULT NULL AFTER `id`");
+}
 
 // Ensure BOM table exists so the product-wise BOM feature works immediately.
 $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
@@ -45,6 +52,7 @@ $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
 if ($mode === "add" && isset($_POST['btn_submit'])) {
+    $customer_id = intval($_POST['customer_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $name_escaped = addslashes($name);
     $rate = $_POST['rate'] ?? 0;
@@ -57,17 +65,20 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     $usage_qty = floatval($_POST['usage_qty'] ?? 0);
     $status = $_POST['status'] ?? 'deactive';
 
-    if ($name === '') {
+    if ($customer_id <= 0) {
+        $error = 'Customer is required.';
+    } elseif ($name === '') {
         $error = 'Product Name is required.';
     } else {
-        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . $name_escaped . "' AND is_deleted=0 LIMIT 1");
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND is_deleted=0 LIMIT 1");
         if (!empty($duplicate)) {
-            $error = 'Product Name already exists.';
+            $error = 'This Product Name already exists for selected customer.';
         }
     }
 
     if (empty($error)) {
         $add_qry = "INSERT INTO $table SET
+                customer_id='" . $customer_id . "',
                 name='" . $name_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
@@ -85,6 +96,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     }
 
     $data = [
+        'customer_id' => $customer_id,
         'name' => htmlspecialchars($name),
         'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
@@ -92,11 +104,14 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
         'default_width' => htmlspecialchars($_POST['default_width'] ?? ''),
         'default_height' => htmlspecialchars($_POST['default_height'] ?? ''),
         'description' => htmlspecialchars($_POST['description'] ?? ''),
+        'mapped_material_id' => $mapped_material_id,
+        'usage_qty' => htmlspecialchars($_POST['usage_qty'] ?? ''),
         'status' => $status
     ];
 }
 
 if ($mode === "edit" && isset($_POST['btn_submit'])) {
+    $customer_id = intval($_POST['customer_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
     $name_escaped = addslashes($name);
     $rate = $_POST['rate'] ?? 0;
@@ -109,17 +124,20 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     $usage_qty = floatval($_POST['usage_qty'] ?? 0);
     $status = $_POST['status'] ?? 'deactive';
 
-    if ($name === '') {
+    if ($customer_id <= 0) {
+        $error = 'Customer is required.';
+    } elseif ($name === '') {
         $error = 'Product Name is required.';
     } else {
-        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE name='" . $name_escaped . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
         if (!empty($duplicate)) {
-            $error = 'Product Name already exists.';
+            $error = 'This Product Name already exists for selected customer.';
         }
     }
 
     if (empty($error)) {
         $edit_qry = "UPDATE $table SET
+                customer_id='" . $customer_id . "',
                 name='" . $name_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
@@ -138,6 +156,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     }
 
     $data = [
+        'customer_id' => $customer_id,
         'name' => htmlspecialchars($name),
         'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
@@ -145,6 +164,8 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
         'default_width' => htmlspecialchars($_POST['default_width'] ?? ''),
         'default_height' => htmlspecialchars($_POST['default_height'] ?? ''),
         'description' => htmlspecialchars($_POST['description'] ?? ''),
+        'mapped_material_id' => $mapped_material_id,
+        'usage_qty' => htmlspecialchars($_POST['usage_qty'] ?? ''),
         'status' => $status
     ];
 }
@@ -295,9 +316,10 @@ if (!$mode) {
         $offset = ($page - 1) * $limit;
     }
 
-    $all_data = $ai_db->aiGetQuery("SELECT p.*,
+    $all_data = $ai_db->aiGetQuery("SELECT p.*, c.contact_name AS customer_name,
             (SELECT COUNT(*) FROM $bom_table pb WHERE pb.product_id = p.id AND pb.is_deleted=0) as bom_count
             FROM $table p
+            LEFT JOIN tbl_customer c ON c.id = p.customer_id
             WHERE $where_clause
             ORDER BY p.id DESC
             LIMIT $limit OFFSET $offset");
@@ -376,6 +398,7 @@ if ($mode === 'add') {
                         <thead class="table-light">
                             <tr>
                                 <th width="80">Sr No.</th>
+                                <th>Customer</th>
                                 <th>Name</th>
                                 <th class="d-none">Rate</th>
                                 <th>HSN Code</th>
@@ -389,6 +412,7 @@ if ($mode === 'add') {
                                 foreach ($all_data as $index => $row) { ?>
                                     <tr>
                                         <td>#<?= $offset + $index + 1 ?></td>
+                                        <td><?= htmlspecialchars($row['customer_name'] ?? '-') ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
                                         <td class="d-none">Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
@@ -426,7 +450,7 @@ if ($mode === 'add') {
                                 <?php }
                             } else { ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox display-4 d-block mb-3"></i>
                                         No data available. Click "Add New" to get started.
                                     </td>
@@ -630,6 +654,27 @@ if ($mode === 'add') {
                         <input type="hidden" name="id" value="<?= isset($data['id']) ? $data['id'] : '' ?>">
 
                         <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Customer <span class="text-danger">*</span></label>
+                                <select name="customer_id" class="form-select select2" required>
+                                    <option value="">Select Customer</option>
+                                    <?php foreach ($all_customers as $customer) {
+                                        $cust_id = intval($customer['id'] ?? 0);
+                                        $cust_name = trim((string) ($customer['contact_name'] ?? ''));
+                                        $cust_status = strtolower(trim((string) ($customer['status'] ?? '')));
+                                        $is_selected = isset($data['customer_id']) && intval($data['customer_id']) === $cust_id;
+                                        $label = $cust_name;
+                                        if ($cust_status !== '' && $cust_status !== 'active') {
+                                            $label .= ' (' . ucfirst($cust_status) . ')';
+                                        }
+                                        ?>
+                                        <option value="<?= $cust_id ?>" <?= $is_selected ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($label) ?>
+                                        </option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
                                 <input type="text" name="name" class="form-control" placeholder="Enter Product Name"
