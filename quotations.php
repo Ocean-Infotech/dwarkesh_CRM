@@ -45,7 +45,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
     $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_name, product_name, sale_rate FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC LIMIT 100");
 
     if (($mode === "add" || $mode === "edit") && isset($_POST['btn_submit'])) {
@@ -437,8 +437,7 @@ function filterHeaderProductsByCustomer(customerId) {
         if (!opt.value) return;
 
         const belongsToCustomer = String(opt.customerId) === String(customerId);
-        const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
-        if (customerId === '' || belongsToCustomer || isCommon) {
+        if (customerId !== '' && belongsToCustomer) {
             const option = document.createElement('option');
             option.value = opt.value;
             option.textContent = opt.text;

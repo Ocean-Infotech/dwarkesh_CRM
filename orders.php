@@ -19,7 +19,7 @@ $error = '';
 
 // Fetch master data
 $customers = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-$products = $ai_db->aiGetQuery("SELECT id, customer_id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, customer_id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
 $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_id FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC");
 $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 
@@ -667,7 +667,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <button type="button" class="btn btn-theme" data-bs-toggle="modal"
                                 data-bs-target="#orderProductQuickAddModal">Add New</button>
                         </div>
-                        <input type="text" id="product_size_preview" class="form-control mt-2"
+                        <input type="text" id="product_size_preview" style="background-color: #f1f5f9;" class="form-control mt-2"
                             placeholder="Size will appear here" readonly>
                     </div>
                     <div class="col-md-8">
@@ -1656,8 +1656,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 if (!opt.value) return;
 
                 const belongsToCustomer = String(opt.customerId) === String(custId);
-                const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
-                if (custId === '' || belongsToCustomer || isCommon) {
+                if (custId !== '' && belongsToCustomer) {
                     const newOpt = document.createElement('option');
                     newOpt.value = opt.value;
                     newOpt.textContent = opt.text;
@@ -2314,6 +2313,10 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         if (productQuickAddForm) {
             productQuickAddForm.addEventListener('submit', function (event) {
                 event.preventDefault();
+                if (!custSelect || !custSelect.value) {
+                    handleAjaxError('Please select customer first.');
+                    return;
+                }
                 if (!this.checkValidity()) {
                     this.classList.add('was-validated');
                     return;

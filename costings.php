@@ -131,7 +131,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
     $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $materials = $ai_db->aiGetQuery("
         SELECT m.id, m.name, m.rate, m.weight, mt.name AS material_type_name
@@ -1417,8 +1417,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             const belongsToCustomer = String(opt.customerId) === String(customerId);
-            const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
-            if (customerId === '' || belongsToCustomer || isCommon) {
+            if (customerId !== '' && belongsToCustomer) {
                 const option = document.createElement('option');
                 option.value = opt.value;
                 option.textContent = opt.text;
@@ -2028,6 +2027,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (productQuickAddForm) {
         productQuickAddForm.addEventListener('submit', function (event) {
             event.preventDefault();
+            if (!customerSelect || !customerSelect.value) {
+                handleAjaxError('Please select customer first.');
+                return;
+            }
             if (!this.checkValidity()) {
                 this.classList.add('was-validated');
                 return;
