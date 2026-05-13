@@ -1,6 +1,6 @@
 <?php
 
-define('SITE_TITLE', 'ZEST INTERNATIONAL');
+define('SITE_TITLE', 'Dwarkesh Packaging');
 define('SITE_EMAIL', 'info@mail.com');
 define('SITE_PHONE', '+91 9999999999');
 define('SITE_ADDRESS', 'Address');
