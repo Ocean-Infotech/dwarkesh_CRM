@@ -173,6 +173,12 @@ $update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($a
     if ($product_id <= 0 || $qty == 0)
         return;
 
+    // 1. Update Product Stock (Direct Box Quantity)
+    $op = ($action_type === 'minus') ? '-' : '+';
+    $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty $op $qty WHERE id = $product_id");
+    $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$qty', action_type='$action_type', remarks='$remarks', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
+    // 2. Update BOM/Material Stock
     // Check if BOM exists for this product
     $bom_exists = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = $product_id AND is_deleted = 0 LIMIT 1");
 
@@ -187,9 +193,8 @@ $update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($a
             $m_res = $ai_db->aiGetQuery("SELECT id FROM tbl_materials WHERE name = '$m_name' AND is_deleted = 0 LIMIT 1");
             if (!empty($m_res)) {
                 $m_id = $m_res[0]['id'];
-                $op = ($action_type === 'minus') ? '-' : '+';
                 $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
-                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks (BOM)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
             }
         }
     } else {
@@ -199,7 +204,6 @@ $update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($a
             $m_id = intval($prod[0]['mapped_material_id']);
             $usage = floatval($prod[0]['usage_qty']);
             $total_m_qty = $usage * abs($qty);
-            $op = ($action_type === 'minus') ? '-' : '+';
             $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
             $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks (Primary)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
         }
@@ -254,9 +258,18 @@ if (isset($_POST['btn_submit'])) {
         $qty_to_check = $box_qty - $original_box_qty;
 
         if ($qty_to_check > 0) {
-            $materials_to_validate = [];
+            // Check Product Stock
+            $prod_res = $ai_db->aiGetQuery("SELECT name, stock_qty FROM tbl_product WHERE id = " . intval($product_id) . " AND is_deleted = 0 LIMIT 1");
+            if (!empty($prod_res)) {
+                $available_prod = floatval($prod_res[0]['stock_qty'] ?? 0);
+                if ($qty_to_check > $available_prod) {
+                    $error = "Insufficient product stock for " . htmlspecialchars($prod_res[0]['name']) . ". Needed: " . number_format($qty_to_check, 2) . ", Available: " . number_format($available_prod, 2);
+                }
+            }
 
-            // 1. Try to get BOM Items
+            if (empty($error)) {
+                $materials_to_validate = [];
+                // 1. Try to get BOM Items
             $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " AND is_deleted = 0");
 
             if (!empty($bom_items)) {
@@ -300,6 +313,7 @@ if (isset($_POST['btn_submit'])) {
             }
         }
     }
+}
 
     if (empty($error) && isset($_FILES['offset_image']) && intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
         if (intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
