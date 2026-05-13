@@ -173,6 +173,7 @@ $update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($a
     if ($product_id <= 0 || $qty == 0)
         return;
 
+    // 2. Update BOM/Material Stock
     // Check if BOM exists for this product
     $bom_exists = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = $product_id AND is_deleted = 0 LIMIT 1");
 
@@ -255,48 +256,47 @@ if (isset($_POST['btn_submit'])) {
 
         if ($qty_to_check > 0) {
             $materials_to_validate = [];
-
             // 1. Try to get BOM Items
-            $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " AND is_deleted = 0");
+                $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " AND is_deleted = 0");
 
-            if (!empty($bom_items)) {
-                foreach ((array) $bom_items as $bom) {
-                    $materials_to_validate[] = [
-                        'name' => $bom['material_name'],
-                        'needed' => floatval($bom['qty']) * $qty_to_check
-                    ];
-                }
-            } else {
-                // 2. Fallback ONLY if the product has NO BOM items at all (not even deleted ones)
-                $has_bom_def = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " LIMIT 1");
-                if (empty($has_bom_def)) {
-                    $prod_mapped = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = " . intval($product_id) . " LIMIT 1");
-                    if (!empty($prod_mapped) && intval($prod_mapped[0]['mapped_material_id'] ?? 0) > 0) {
-                        $m_id = intval($prod_mapped[0]['mapped_material_id']);
-                        $usage = floatval($prod_mapped[0]['usage_qty'] ?? 0);
-                        $m_res = $ai_db->aiGetQuery("SELECT name FROM tbl_materials WHERE id = $m_id AND is_deleted = 0 LIMIT 1");
-                        if (!empty($m_res)) {
-                            $materials_to_validate[] = [
-                                'name' => $m_res[0]['name'],
-                                'needed' => $usage * $qty_to_check
-                            ];
+                if (!empty($bom_items)) {
+                    foreach ((array) $bom_items as $bom) {
+                        $materials_to_validate[] = [
+                            'name' => $bom['material_name'],
+                            'needed' => floatval($bom['qty']) * $qty_to_check
+                        ];
+                    }
+                } else {
+                    // 2. Fallback ONLY if the product has NO BOM items at all (not even deleted ones)
+                    $has_bom_def = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " LIMIT 1");
+                    if (empty($has_bom_def)) {
+                        $prod_mapped = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = " . intval($product_id) . " LIMIT 1");
+                        if (!empty($prod_mapped) && intval($prod_mapped[0]['mapped_material_id'] ?? 0) > 0) {
+                            $m_id = intval($prod_mapped[0]['mapped_material_id']);
+                            $usage = floatval($prod_mapped[0]['usage_qty'] ?? 0);
+                            $m_res = $ai_db->aiGetQuery("SELECT name FROM tbl_materials WHERE id = $m_id AND is_deleted = 0 LIMIT 1");
+                            if (!empty($m_res)) {
+                                $materials_to_validate[] = [
+                                    'name' => $m_res[0]['name'],
+                                    'needed' => $usage * $qty_to_check
+                                ];
+                            }
                         }
                     }
                 }
-            }
 
-            // 3. Perform Validation for all identified materials
-            foreach ($materials_to_validate as $mat) {
-                $m_name_escaped = addslashes($mat['name']);
-                $m_res = $ai_db->aiGetQuery("SELECT name, stock_qty FROM tbl_materials WHERE name = '$m_name_escaped' AND is_deleted = 0 LIMIT 1");
+                // 3. Perform Validation for all identified materials
+                foreach ($materials_to_validate as $mat) {
+                    $m_name_escaped = addslashes($mat['name']);
+                    $m_res = $ai_db->aiGetQuery("SELECT name, stock_qty FROM tbl_materials WHERE name = '$m_name_escaped' AND is_deleted = 0 LIMIT 1");
 
-                if (!empty($m_res)) {
-                    $available = floatval($m_res[0]['stock_qty'] ?? 0);
-                    if ($mat['needed'] > $available) {
-                        $error = "Insufficient material stock for " . htmlspecialchars($m_res[0]['name']) . ". Needed: " . number_format($mat['needed'], 2) . ", Available: " . number_format($available, 2);
-                        break;
+                    if (!empty($m_res)) {
+                        $available = floatval($m_res[0]['stock_qty'] ?? 0);
+                        if ($mat['needed'] > $available) {
+                            $error = "Insufficient material stock for " . htmlspecialchars($m_res[0]['name']) . ". Needed: " . number_format($mat['needed'], 2) . ", Available: " . number_format($available, 2);
+                            break;
+                        }
                     }
-                }
             }
         }
     }
@@ -655,7 +655,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <option value="">Select a Box</option>
                                 <?php foreach ($products as $p) { ?>
                                     <option value="<?= $p['id'] ?>" <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($p['name']) ?>
+                                        <?= htmlspecialchars($p['name']) ?> (Stock: <?= number_format($p['stock_qty'], 2) ?>)
                                     </option>
                                 <?php } ?>
                             </select>
