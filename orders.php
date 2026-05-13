@@ -173,32 +173,36 @@ $update_bom_stock = function ($product_id, $qty, $action_type, $remarks) use ($a
     if ($product_id <= 0 || $qty == 0)
         return;
 
-    // Handle BOM Items
-    $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = '$product_id' AND is_deleted = 0");
-    foreach ((array) $bom_items as $bom) {
-        $m_name = addslashes($bom['material_name']);
-        $bom_qty_per_unit = floatval($bom['qty']);
-        $total_m_qty = $bom_qty_per_unit * abs($qty);
+    // Check if BOM exists for this product
+    $bom_exists = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = $product_id AND is_deleted = 0 LIMIT 1");
 
-        // Find material by name to update stock
-        $m_res = $ai_db->aiGetQuery("SELECT id FROM tbl_materials WHERE name = '$m_name' AND is_deleted = 0 LIMIT 1");
-        if (!empty($m_res)) {
-            $m_id = $m_res[0]['id'];
+    if (!empty($bom_exists)) {
+        // Handle BOM Items
+        $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = $product_id AND is_deleted = 0");
+        foreach ((array) $bom_items as $bom) {
+            $m_name = addslashes($bom['material_name']);
+            $bom_qty_per_unit = floatval($bom['qty']);
+            $total_m_qty = $bom_qty_per_unit * abs($qty);
+
+            $m_res = $ai_db->aiGetQuery("SELECT id FROM tbl_materials WHERE name = '$m_name' AND is_deleted = 0 LIMIT 1");
+            if (!empty($m_res)) {
+                $m_id = $m_res[0]['id'];
+                $op = ($action_type === 'minus') ? '-' : '+';
+                $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
+                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+            }
+        }
+    } else {
+        // Legacy Primary Mapped Material Fallback
+        $prod = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = $product_id LIMIT 1");
+        if (!empty($prod) && intval($prod[0]['mapped_material_id'] ?? 0) > 0 && floatval($prod[0]['usage_qty'] ?? 0) > 0) {
+            $m_id = intval($prod[0]['mapped_material_id']);
+            $usage = floatval($prod[0]['usage_qty']);
+            $total_m_qty = $usage * abs($qty);
             $op = ($action_type === 'minus') ? '-' : '+';
             $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
-            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks (Primary)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
         }
-    }
-
-    // Also handle Legacy Primary Mapped Material if any
-    $prod = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = '$product_id' LIMIT 1");
-    if (!empty($prod) && intval($prod[0]['mapped_material_id'] ?? 0) > 0 && floatval($prod[0]['usage_qty'] ?? 0) > 0) {
-        $m_id = intval($prod[0]['mapped_material_id']);
-        $usage = floatval($prod[0]['usage_qty']);
-        $total_m_qty = $usage * abs($qty);
-        $op = ($action_type === 'minus') ? '-' : '+';
-        $ai_db->aiQuery("UPDATE tbl_materials SET stock_qty = stock_qty $op $total_m_qty WHERE id = '$m_id'");
-        $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='material', item_id='$m_id', qty='$total_m_qty', action_type='$action_type', remarks='$remarks (Primary)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
     }
 };
 
@@ -238,19 +242,62 @@ if (isset($_POST['btn_submit'])) {
         }
     }
 
-    // Stock Validation Backend
+    // Stock Validation Backend (Material Only)
     if (empty($error)) {
-        $prod_stock_data = $ai_db->aiGetQuery("SELECT stock_qty FROM tbl_product WHERE id='$product_id' LIMIT 1");
-        $available_stock = floatval($prod_stock_data[0]['stock_qty'] ?? 0);
-        $original_qty = 0;
+        $original_box_qty = 0;
         if ($mode === 'edit') {
-            $old_order_res = $ai_db->aiGetQuery("SELECT product_id, box_qty FROM $table WHERE id='$id' LIMIT 1");
-            if (!empty($old_order_res) && $old_order_res[0]['product_id'] == $product_id) {
-                $original_qty = floatval($old_order_res[0]['box_qty'] ?? 0);
+            $old_order_res = $ai_db->aiGetQuery("SELECT box_qty, product_id FROM $table WHERE id='" . intval($id) . "' LIMIT 1");
+            if (!empty($old_order_res) && intval($old_order_res[0]['product_id']) === intval($product_id)) {
+                $original_box_qty = floatval($old_order_res[0]['box_qty'] ?? 0);
             }
         }
-        if ($box_qty > ($available_stock + $original_qty)) {
-            $error = "Insufficient stock. Available: " . ($available_stock + $original_qty) . " PCS.";
+        $qty_to_check = $box_qty - $original_box_qty;
+
+        if ($qty_to_check > 0) {
+            $materials_to_validate = [];
+
+            // 1. Try to get BOM Items
+            $bom_items = $ai_db->aiGetQuery("SELECT material_name, qty FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " AND is_deleted = 0");
+
+            if (!empty($bom_items)) {
+                foreach ((array) $bom_items as $bom) {
+                    $materials_to_validate[] = [
+                        'name' => $bom['material_name'],
+                        'needed' => floatval($bom['qty']) * $qty_to_check
+                    ];
+                }
+            } else {
+                // 2. Fallback ONLY if the product has NO BOM items at all (not even deleted ones)
+                $has_bom_def = $ai_db->aiGetQuery("SELECT id FROM tbl_product_bom WHERE product_id = " . intval($product_id) . " LIMIT 1");
+                if (empty($has_bom_def)) {
+                    $prod_mapped = $ai_db->aiGetQuery("SELECT mapped_material_id, usage_qty FROM tbl_product WHERE id = " . intval($product_id) . " LIMIT 1");
+                    if (!empty($prod_mapped) && intval($prod_mapped[0]['mapped_material_id'] ?? 0) > 0) {
+                        $m_id = intval($prod_mapped[0]['mapped_material_id']);
+                        $usage = floatval($prod_mapped[0]['usage_qty'] ?? 0);
+                        $m_res = $ai_db->aiGetQuery("SELECT name FROM tbl_materials WHERE id = $m_id AND is_deleted = 0 LIMIT 1");
+                        if (!empty($m_res)) {
+                            $materials_to_validate[] = [
+                                'name' => $m_res[0]['name'],
+                                'needed' => $usage * $qty_to_check
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // 3. Perform Validation for all identified materials
+            foreach ($materials_to_validate as $mat) {
+                $m_name_escaped = addslashes($mat['name']);
+                $m_res = $ai_db->aiGetQuery("SELECT name, stock_qty FROM tbl_materials WHERE name = '$m_name_escaped' AND is_deleted = 0 LIMIT 1");
+
+                if (!empty($m_res)) {
+                    $available = floatval($m_res[0]['stock_qty'] ?? 0);
+                    if ($mat['needed'] > $available) {
+                        $error = "Insufficient material stock for " . htmlspecialchars($m_res[0]['name']) . ". Needed: " . number_format($mat['needed'], 2) . ", Available: " . number_format($available, 2);
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -363,10 +410,6 @@ if (isset($_POST['btn_submit'])) {
             $new_order_id = intval($ai_db->aiLastInsert());
             $save_order_items($new_order_id, $liner_items, $duplex_items);
 
-            // Update Stock
-            $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
-            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Placed: #$order_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
-
             // Update BOM Material Stock
             $update_bom_stock($product_id, $box_qty, 'minus', "Order Placed: #$order_no");
 
@@ -381,28 +424,18 @@ if (isset($_POST['btn_submit'])) {
             $ai_db->aiQuery("UPDATE $table SET $sql_fields, updated_by='" . ($_SESSION['aid'] ?? 0) . "' WHERE id='$id'");
             $save_order_items($id, $liner_items, $duplex_items);
 
-            // Update Stock
+            // Update BOM Stock
             if ($old_product_id == $product_id) {
                 $diff = $box_qty - $old_box_qty;
                 if ($diff != 0) {
-                    $op = ($diff > 0) ? '-' : '+';
-                    $abs_diff = abs($diff);
-                    $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty $op $abs_diff WHERE id = $product_id");
                     $action = ($diff > 0) ? 'minus' : 'plus';
-                    $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$abs_diff', action_type='$action', remarks='Order Edited: #$order_no (Qty Changed)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
-
-                    // Update BOM Material Stock
+                    $abs_diff = abs($diff);
                     $update_bom_stock($product_id, $abs_diff, $action, "Order Edited: #$order_no (Qty Changed)");
                 }
             } else {
-                // Add back to old product
-                $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $old_box_qty WHERE id = $old_product_id");
-                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$old_product_id', qty='$old_box_qty', action_type='plus', remarks='Order Product Changed: #$order_no (Old Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                // Revert old product BOM
                 $update_bom_stock($old_product_id, $old_box_qty, 'plus', "Order Product Changed: #$order_no (Old Product Revert)");
-
-                // Deduct from new product
-                $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
-                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Product Changed: #$order_no (New Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+                // Deduct new product BOM
                 $update_bom_stock($product_id, $box_qty, 'minus', "Order Product Changed: #$order_no (New Product Deduction)");
             }
 
@@ -423,9 +456,6 @@ if ($mode === 'delete' && $id > 0) {
         $p_id = intval($order_res[0]['product_id']);
         $b_qty = floatval($order_res[0]['box_qty']);
         $o_no = $order_res[0]['order_no'];
-
-        $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $b_qty WHERE id = $p_id");
-        $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$p_id', qty='$b_qty', action_type='plus', remarks='Order Deleted: #$o_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
 
         // Revert BOM Material Stock
         $update_bom_stock($p_id, $b_qty, 'plus', "Order Deleted: #$o_no");
@@ -593,9 +623,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <span class="input-group-text">Upps</span>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3 d-none">
                         <label class="form-label">Rate</label>
-                        <input type="number" step="0.01" min="0.01" name="rate" class="form-control"
+                        <input type="number" step="0.01" name="rate" class="form-control"
                             value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate">
                     </div>
 
@@ -695,7 +725,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         New</button>
                                                 </div>
                                             </div>
-                                            <div class="col-md-2">
+                                            <div class="col-md-2 d-none">
                                                 <input type="text" id="liner_rate_input"
                                                     class="form-control form-control-sm" placeholder="rate">
                                             </div>
@@ -713,7 +743,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <thead>
                                                 <tr>
                                                     <th>Name</th>
-                                                    <th>Rate</th>
+                                                    <th class="d-none">Rate</th>
                                                     <th>Pcs</th>
                                                     <th class="text-center">Action</th>
                                                 </tr>
@@ -785,7 +815,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         New</button>
                                                 </div>
                                             </div>
-                                            <div class="col-md-2">
+                                            <div class="col-md-2 d-none">
                                                 <input type="text" id="duplex_rate_input"
                                                     class="form-control form-control-sm" placeholder="rate">
                                             </div>
@@ -803,7 +833,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <thead>
                                                 <tr>
                                                     <th>Name</th>
-                                                    <th>Rate</th>
+                                                    <th class="d-none">Rate</th>
                                                     <th>Pcs</th>
                                                     <th class="text-center">Action</th>
                                                 </tr>
@@ -1191,7 +1221,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <th>Customer</th>
                                 <th>Brand</th>
                                 <th>Box Name</th>
-                                <th>Rate</th>
+                                <th class="d-none">Rate</th>
                                 <!-- <th>Plate</th>
                                 <th>Print</th>
                                 <th>Die</th>
@@ -1219,7 +1249,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                         <td>
                                             <?= htmlspecialchars($row['product_name']) ?>
                                         </td>
-                                        <td>Rs.
+                                        <td class="d-none">Rs.
                                             <?= number_format((float) $row['rate'], 2) ?>
                                         </td>
                                         <!-- <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
@@ -1351,7 +1381,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <input type="text" name="name" class="form-control" placeholder="Enter product name"
                                     required>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-6 d-none">
                                 <label class="form-label fw-bold">Rate</label>
                                 <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter rate">
                             </div>
@@ -1439,7 +1469,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <label class="form-label fw-bold">Top Value</label>
                                 <input type="number" step="0.01" name="top_value" class="form-control" placeholder="0">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-3 d-none">
                                 <label class="form-label fw-bold">Rate</label>
                                 <input type="number" step="0.01" name="rate" class="form-control" placeholder="0">
                             </div>
@@ -1468,10 +1498,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const productStockMap = <?= json_encode(array_column($products, 'stock_qty', 'id')) ?>;
         const customerBrandsMap = <?= json_encode($customerBrandsMap) ?>;
         const currentBrand = "<?= htmlspecialchars($data['brand_name'] ?? '') ?>";
-        
+
         <?php if (!empty($error)) { ?>
             if (typeof showToast === 'function') {
                 showToast('Validation Error', "<?= addslashes($error) ?>", 'error');
@@ -1648,7 +1677,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 linerItemsTableBody.innerHTML = linerItems.map((item, index) => `
                     <tr>
                         <td>${item.name}</td>
-                        <td>${formatNumber(item.rate)}</td>
+                        <td class="d-none">${formatNumber(item.rate)}</td>
                         <td>${formatNumber(item.qty)}</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-danger remove-liner-item" data-index="${index}">
@@ -1672,7 +1701,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 duplexItemsTableBody.innerHTML = duplexItems.map((item, index) => `
                     <tr>
                         <td>${item.name}</td>
-                        <td>${formatNumber(item.rate)}</td>
+                        <td class="d-none">${formatNumber(item.rate)}</td>
                         <td>${formatNumber(item.qty)}</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-danger remove-duplex-item" data-index="${index}">
@@ -1956,54 +1985,11 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                     return;
                 }
 
-                // Stock Validation
-                const pid = productSelect ? productSelect.value : 0;
-                const qty = parseFloat(document.getElementsByName('box_qty')[0]?.value || 0);
-                const available = parseFloat(productStockMap[pid] || 0);
-                let originalQty = 0;
-                <?php if ($mode === 'edit') { ?>
-                    if (pid == "<?= $data['product_id'] ?? 0 ?>") {
-                        originalQty = parseFloat("<?= $data['box_qty'] ?? 0 ?>");
-                    }
-                <?php } ?>
-
-                if (qty > (available + originalQty)) {
-                    event.preventDefault();
-                    if (typeof showToast === 'function') {
-                        showToast('Insufficient Stock', `Available stock is only ${available + originalQty} PCS.`, 'error');
-                    } else {
-                        alert(`Insufficient Stock. Available: ${available + originalQty} PCS.`);
-                    }
-                }
+                // Material stock is validated on the backend.
             });
-
-            // Live validation on box_qty change
-            const boxQtyInput = document.getElementsByName('box_qty')[0];
-            if (boxQtyInput) {
-                const liveCheck = function () {
-                    const pid = productSelect ? productSelect.value : 0;
-                    if (!pid) return;
-                    const qty = parseFloat(this.value || 0);
-                    const available = parseFloat(productStockMap[pid] || 0);
-                    let originalQty = 0;
-                    <?php if ($mode === 'edit') { ?>
-                        if (pid == "<?= $data['product_id'] ?? 0 ?>") {
-                            originalQty = parseFloat("<?= $data['box_qty'] ?? 0 ?>");
-                        }
-                    <?php } ?>
-
-                    if (qty > (available + originalQty)) {
-                        if (typeof showToast === 'function') {
-                            showToast('Insufficient Stock', `Stock available: ${available + originalQty} PCS`, 'warning');
-                        }
-                    }
-                };
-                boxQtyInput.addEventListener('change', liveCheck);
-                if (productSelect) productSelect.addEventListener('change', () => {
-                    boxQtyInput.dispatchEvent(new Event('change'));
-                });
-            }
         }
+
+        // The rest of the script continues below inside the same DOMContentLoaded block
 
         if (addLinerItemButton) {
             addLinerItemButton.addEventListener('click', function () {

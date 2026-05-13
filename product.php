@@ -202,8 +202,8 @@ if ($mode === "bom") {
         $unit = trim($_POST['unit'] ?? '');
         $unit_escaped = addslashes($unit);
 
-        if ($material_name === '' || $rate === '' || $qty === '' || $unit === '') {
-            $bom_error = 'Material Name, Rate, Qty and Unit are required.';
+        if ($material_name === '' || $qty === '' || $unit === '') {
+            $bom_error = 'Material Name, Qty and Unit are required.';
         }
 
         if (empty($bom_error)) {
@@ -377,7 +377,7 @@ if ($mode === 'add') {
                             <tr>
                                 <th width="80">Sr No.</th>
                                 <th>Name</th>
-                                <th>Rate</th>
+                                <th class="d-none">Rate</th>
                                 <th>HSN Code</th>
                                 <th>Default Size (LxWxH)</th>
                                 <th>Status</th>
@@ -390,7 +390,7 @@ if ($mode === 'add') {
                                     <tr>
                                         <td>#<?= $offset + $index + 1 ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
-                                        <td>Rs. <?= number_format($row['rate'], 2) ?></td>
+                                        <td class="d-none">Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
                                         <td><?= $row['default_length'] ?> x <?= $row['default_width'] ?> x
                                             <?= $row['default_height'] ?> cm
@@ -477,7 +477,7 @@ if ($mode === 'add') {
                             <h5 class="fw-bold mb-1"><?= htmlspecialchars($selected_product['name']) ?></h5>
                             <div class="text-muted small">
                                 HSN: <?= htmlspecialchars($selected_product['hsn_code'] ?: '-') ?> |
-                                Rate: Rs. <?= number_format($selected_product['rate'], 2) ?>
+                                <span class="d-none">Rate: Rs. <?= number_format($selected_product['rate'], 2) ?></span>
                             </div>
                         </div>
                         <div class="text-md-end">
@@ -526,11 +526,11 @@ if ($mode === 'add') {
                             </select>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3 d-none">
                             <label class="form-label fw-bold">Rate <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" min="0" name="rate" class="form-control"
                                 placeholder="Enter Rate"
-                                value="<?= isset($bom_data['rate']) ? htmlspecialchars($bom_data['rate']) : '' ?>" required>
+                                value="<?= isset($bom_data['rate']) ? htmlspecialchars($bom_data['rate']) : '' ?>">
                         </div>
 
                         <div class="mb-3">
@@ -573,7 +573,7 @@ if ($mode === 'add') {
                                     <tr>
                                         <th width="80">Sr No.</th>
                                         <th>Material Name</th>
-                                        <th>Rate</th>
+                                        <th class="d-none">Rate</th>
                                         <th>Qty</th>
                                         <th>Unit</th>
                                         <th width="180" class="text-center">Action</th>
@@ -585,7 +585,7 @@ if ($mode === 'add') {
                                             <tr>
                                                 <td>#<?= $index + 1 ?></td>
                                                 <td class="fw-semibold"><?= htmlspecialchars($item['material_name']) ?></td>
-                                                <td>Rs. <?= number_format($item['rate'], 2) ?></td>
+                                                <td class="d-none">Rs. <?= number_format($item['rate'], 2) ?></td>
                                                 <td><?= htmlspecialchars($item['qty']) ?></td>
                                                 <td><?= htmlspecialchars($item['unit']) ?></td>
                                                 <td class="text-center">
@@ -636,7 +636,7 @@ if ($mode === 'add') {
                                     value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 d-none">
                                 <label class="form-label fw-bold">Rate</label>
                                 <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter Rate"
                                     value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">

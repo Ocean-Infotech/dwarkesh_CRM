@@ -266,7 +266,7 @@ if (!$mode) {
                                 <th>Material Type</th>
                                 <th>Name</th>
                                 <th>F/P/Top</th>
-                                <th>Rate</th>
+                                <th class="d-none">Rate</th>
                                 <th>Weight</th>
                                 <th>Status</th>
                                 <th width="200" class="text-center">Action</th>
@@ -281,7 +281,7 @@ if (!$mode) {
                                         </td>
                                         <td><?= htmlspecialchars($row['name']) ?></td>
                                         <td><?= $row['f_value'] ?>/<?= $row['p_value'] ?>/<?= $row['top_value'] ?></td>
-                                        <td>₹<?= number_format($row['rate'], 2) ?></td>
+                                        <td class="d-none">₹<?= number_format($row['rate'], 2) ?></td>
                                         <td><?= $row['weight'] ?> kg</td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
@@ -403,7 +403,7 @@ if (!$mode) {
                                     value="<?= isset($data['top_value']) ? $data['top_value'] : '' ?>">
                             </div>
 
-                            <div class="col-md-3">
+                            <div class="col-md-3 d-none">
                                 <label class="form-label fw-bold">Rate</label>
                                 <input type="number" step="0.01" name="rate" class="form-control form-control"
                                     placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">

@@ -105,8 +105,8 @@ if (!file_exists($logoPath)) {
             <tr>
                 <td class="label-cell">Total Quantity</td>
                 <td class="value-cell"><?= number_format($order['box_qty']) ?> <?= htmlspecialchars($order['box_qty_unit']) ?></td>
-                <td class="label-cell">Sale Rate</td>
-                <td class="value-cell">₹ <?= number_format($order['rate'], 2) ?></td>
+                <td class="label-cell d-none">Sale Rate</td>
+                <td class="value-cell d-none">₹ <?= number_format($order['rate'], 2) ?></td>
             </tr>
             <tr>
                 <td class="label-cell">Sheet Size</td>
@@ -123,7 +123,7 @@ if (!file_exists($logoPath)) {
                     <thead>
                         <tr>
                             <th>Material</th>
-                            <th width="60">Rate</th>
+                            <th width="60" class="d-none">Rate</th>
                             <th width="60">Qty</th>
                         </tr>
                     </thead>
@@ -131,7 +131,7 @@ if (!file_exists($logoPath)) {
                         <?php foreach ($liner_items as $li) { ?>
                             <tr>
                                 <td><?= htmlspecialchars($li['material_name'] ?: $li['name']) ?></td>
-                                <td><?= number_format($li['rate'], 2) ?></td>
+                                <td class="d-none"><?= number_format($li['rate'], 2) ?></td>
                                 <td><?= number_format($li['qty'] ?: $li['pcs'], 1) ?></td>
                             </tr>
                         <?php } ?>
@@ -151,7 +151,7 @@ if (!file_exists($logoPath)) {
                     <thead>
                         <tr>
                             <th>Material</th>
-                            <th width="60">Rate</th>
+                            <th width="60" class="d-none">Rate</th>
                             <th width="60">Qty</th>
                         </tr>
                     </thead>
@@ -159,7 +159,7 @@ if (!file_exists($logoPath)) {
                         <?php foreach ($duplex_items as $di) { ?>
                             <tr>
                                 <td><?= htmlspecialchars($di['material_name'] ?: $di['name']) ?></td>
-                                <td><?= number_format($di['rate'], 2) ?></td>
+                                <td class="d-none"><?= number_format($di['rate'], 2) ?></td>
                                 <td><?= number_format($di['qty'] ?: $di['pcs'], 1) ?></td>
                             </tr>
                         <?php } ?>

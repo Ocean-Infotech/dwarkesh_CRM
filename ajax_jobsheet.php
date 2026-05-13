@@ -49,14 +49,14 @@ if (isset($_POST['action']) && $_POST['action'] == 'generate_report') {
         if (!empty($items)) {
             echo '<div class="table-responsive rounded-3 overflow-hidden">';
             echo '<table class="table table-hover report-table mb-0">';
-            echo '<thead><tr><th>Group</th><th>Material</th><th class="text-end">Rate</th><th class="text-end">Qty / PCS</th></tr></thead>';
+            echo '<thead><tr><th>Group</th><th>Material</th><th class="text-end d-none">Rate</th><th class="text-end">Qty / PCS</th></tr></thead>';
             echo '<tbody>';
             foreach ($items as $item) {
                 $mat_name = !empty($item['material_name']) ? $item['material_name'] : $item['name'];
                 echo '<tr>';
                 echo '<td><span class="badge bg-light text-dark border">' . ucfirst(htmlspecialchars($item['item_group'])) . '</span></td>';
                 echo '<td class="fw-semibold">' . htmlspecialchars($mat_name) . '</td>';
-                echo '<td class="text-end text-muted">₹ ' . number_format($item['rate'], 2) . '</td>';
+                echo '<td class="text-end text-muted d-none">₹ ' . number_format($item['rate'], 2) . '</td>';
                 echo '<td class="text-end fw-bold">' . htmlspecialchars($item['qty'] > 0 ? $item['qty'] : $item['pcs']) . '</td>';
                 echo '</tr>';
             }
