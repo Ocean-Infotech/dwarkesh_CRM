@@ -23,7 +23,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     $f_value = $_POST['f_value'] ?? 0;
     $p_value = $_POST['p_value'] ?? 0;
     $top_value = $_POST['top_value'] ?? 0;
-    $rate = $_POST['rate'] ?? 0;
+
     $weight = $_POST['weight'] ?? 0;
     $status = $_POST['status'] ?? 'deactive';
 
@@ -43,7 +43,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
                 f_value='" . $f_value . "',
                 p_value='" . $p_value . "',
                 top_value='" . $top_value . "',
-                rate='" . $rate . "',
+
                 weight='" . $weight . "',
                 status='" . $status . "',
                 created_by='" . $_SESSION['aid'] . "'";
@@ -58,7 +58,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
         'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
         'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
         'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
-        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
+
         'weight' => htmlspecialchars($_POST['weight'] ?? ''),
         'status' => $status
     ];
@@ -71,7 +71,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     $f_value = $_POST['f_value'] ?? 0;
     $p_value = $_POST['p_value'] ?? 0;
     $top_value = $_POST['top_value'] ?? 0;
-    $rate = $_POST['rate'] ?? 0;
+
     $weight = $_POST['weight'] ?? 0;
     $status = $_POST['status'] ?? 'deactive';
 
@@ -91,7 +91,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
                 f_value='" . $f_value . "',
                 p_value='" . $p_value . "',
                 top_value='" . $top_value . "',
-                rate='" . $rate . "',
+
                 weight='" . $weight . "',
                 status='" . $status . "',
                 updated_by='" . $_SESSION['aid'] . "'
@@ -107,7 +107,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
         'f_value' => htmlspecialchars($_POST['f_value'] ?? ''),
         'p_value' => htmlspecialchars($_POST['p_value'] ?? ''),
         'top_value' => htmlspecialchars($_POST['top_value'] ?? ''),
-        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
+
         'weight' => htmlspecialchars($_POST['weight'] ?? ''),
         'status' => $status
     ];
@@ -266,7 +266,6 @@ if (!$mode) {
                                 <th>Material Type</th>
                                 <th>Name</th>
                                 <th>F/P/Top</th>
-                                <th>Rate</th>
                                 <th>Weight</th>
                                 <th>Status</th>
                                 <th width="200" class="text-center">Action</th>
@@ -281,7 +280,7 @@ if (!$mode) {
                                         </td>
                                         <td><?= htmlspecialchars($row['name']) ?></td>
                                         <td><?= $row['f_value'] ?>/<?= $row['p_value'] ?>/<?= $row['top_value'] ?></td>
-                                        <td>₹<?= number_format($row['rate'], 2) ?></td>
+
                                         <td><?= $row['weight'] ?> kg</td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
@@ -403,11 +402,7 @@ if (!$mode) {
                                     value="<?= isset($data['top_value']) ? $data['top_value'] : '' ?>">
                             </div>
 
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold">Rate</label>
-                                <input type="number" step="0.01" name="rate" class="form-control form-control"
-                                    placeholder="Enter Rate" value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
-                            </div>
+
 
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Weight (kg)</label>

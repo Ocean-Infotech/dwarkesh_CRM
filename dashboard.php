@@ -210,13 +210,12 @@ $extraFooter = '
     <!-- Global Filters -->
     <div class="row mb-4">
         <div class="col-12">
-            <div
-                class="filter-wrapper p-3 shadow-sm rounded-4 bg-white d-flex align-items-center justify-content-between">
+            <div class="filter-wrapper p-3 shadow-sm rounded-4 d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                     <div class="filter-icon me-3 bg-gold-light text-gold p-2 rounded-3">
                         <i class="bi bi-filter-left fs-5"></i>
                     </div>
-                    <h6 class="fw-bold m-0 text-dark">Data Insights for
+                    <h6 class="fw-bold m-0 dashboard-title-text">Data Insights for
                         <?= date('F', mktime(0, 0, 0, $filterMonth, 10)) ?> <?= $filterYear ?>
                     </h6>
                 </div>
@@ -316,7 +315,7 @@ $extraFooter = '
         <div class="col-lg-8">
             <div class="chart-card shadow-sm">
                 <div class="card-header bg-transparent border-0 p-4 pb-0">
-                    <h6 class="fw-bold m-0 text-dark">Revenue Trend:
+                    <h6 class="fw-bold m-0 dashboard-title-text">Revenue Trend:
                         <?= date('F Y', mktime(0, 0, 0, $filterMonth, 1, $filterYear)) ?>
                     </h6>
                     <p class="text-muted small m-0">Daily sales performance and revenue growth</p>
@@ -331,7 +330,7 @@ $extraFooter = '
         <div class="col-lg-4">
             <div class="chart-card shadow-sm">
                 <div class="card-header bg-transparent border-0 p-4 pb-0">
-                    <h6 class="fw-bold m-0 text-dark">Financial Distribution</h6>
+                    <h6 class="fw-bold m-0 dashboard-title-text">Financial Distribution</h6>
                     <p class="text-muted small m-0">Orders vs Costings value ratio</p>
                 </div>
                 <div class="card-body p-4">
@@ -347,7 +346,7 @@ $extraFooter = '
     <div class="dashboard-table-card shadow-sm border-0">
         <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center p-4 pb-2">
             <div>
-                <h5 class="fw-bold m-0">Recent Orders</h5>
+                <h5 class="fw-bold m-0 dashboard-title-text">Recent Orders</h5>
                 <p class="text-muted small m-0">Latest 10 transactions across the platform</p>
             </div>
             <a href="orders.php" class="btn btn-gold btn-sm rounded-pill px-4">View All</a>

@@ -64,7 +64,7 @@ if ($_POST['action'] == 'create_product_inline') {
     header('Content-Type: application/json');
 
     $name = trim($_POST['name'] ?? '');
-    $rate = is_numeric($_POST['rate'] ?? null) ? round((float) $_POST['rate'], 2) : 0;
+
     $hsn_code = trim($_POST['hsn_code'] ?? '');
     $default_length = is_numeric($_POST['default_length'] ?? null) ? round((float) $_POST['default_length'], 2) : 0;
     $default_width = is_numeric($_POST['default_width'] ?? null) ? round((float) $_POST['default_width'], 2) : 0;
@@ -85,7 +85,7 @@ if ($_POST['action'] == 'create_product_inline') {
 
     $ai_db->aiQuery("INSERT INTO tbl_product SET
         name='" . addslashes($name) . "',
-        rate='" . $rate . "',
+
         hsn_code='" . addslashes($hsn_code) . "',
         default_length='" . $default_length . "',
         default_width='" . $default_width . "',
@@ -101,7 +101,7 @@ if ($_POST['action'] == 'create_product_inline') {
         'product' => [
             'id' => $insert_id,
             'name' => $name,
-            'rate' => $rate,
+
             'hsn_code' => $hsn_code,
             'default_length' => $default_length,
             'default_width' => $default_width,
@@ -116,7 +116,7 @@ if ($_POST['action'] == 'create_material_inline') {
 
     $material_type_id = intval($_POST['material_type_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
-    $rate = is_numeric($_POST['rate'] ?? null) ? round((float) $_POST['rate'], 2) : 0;
+
     $weight = is_numeric($_POST['weight'] ?? null) ? round((float) $_POST['weight'], 2) : 0;
     $f_value = is_numeric($_POST['f_value'] ?? null) ? round((float) $_POST['f_value'], 2) : 0;
     $p_value = is_numeric($_POST['p_value'] ?? null) ? round((float) $_POST['p_value'], 2) : 0;
@@ -143,7 +143,7 @@ if ($_POST['action'] == 'create_material_inline') {
     $ai_db->aiQuery("INSERT INTO tbl_materials SET
         material_type_id='" . $material_type_id . "',
         name='" . addslashes($name) . "',
-        rate='" . $rate . "',
+
         weight='" . $weight . "',
         f_value='" . $f_value . "',
         p_value='" . $p_value . "',
@@ -160,7 +160,7 @@ if ($_POST['action'] == 'create_material_inline') {
             'name' => $name,
             'material_type_id' => $material_type_id,
             'material_type_name' => $materialTypeRow[0]['name'],
-            'rate' => $rate,
+
             'weight' => $weight,
             'f_value' => $f_value,
             'p_value' => $p_value,
@@ -268,13 +268,13 @@ if ($_POST['action'] == 'update-password') {
     header('Content-Type: application/json');
     $old_pass = md5($_POST['old_password'] ?? '');
     $new_pass = md5($_POST['new_password'] ?? '');
-    
+
     $check = $ai_db->aiGetQuery("SELECT id FROM " . DB_PREFIX . "admin WHERE id=" . $_SESSION['aid'] . " AND password='$old_pass'");
     if (empty($check)) {
         echo json_encode(['success' => false, 'message' => 'Current password is incorrect.']);
         exit;
     }
-    
+
     $ai_db->aiQuery("UPDATE " . DB_PREFIX . "admin SET password='$new_pass' WHERE id=" . $_SESSION['aid']);
     echo json_encode(['success' => true, 'message' => 'Password updated successfully!']);
     exit;
