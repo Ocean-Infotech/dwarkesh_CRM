@@ -45,7 +45,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, name, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_name, product_name, sale_rate FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC LIMIT 100");
 
     if (($mode === "add" || $mode === "edit") && isset($_POST['btn_submit'])) {
@@ -262,7 +262,7 @@
                                     <select id="header_product_id" class="form-select select2">
                                         <option value="">Select Product to Add</option>
                                         <?php foreach ($products as $p) { ?>
-                                            <option value="<?= $p['id'] ?>" data-desc="<?= htmlspecialchars($p['description'] ?? '') ?>" data-rate="<?= $p['rate'] ?? 0 ?>">
+                                            <option value="<?= $p['id'] ?>" data-customer-id="<?= intval($p['customer_id'] ?? 0) ?>" data-desc="<?= htmlspecialchars($p['description'] ?? '') ?>" data-rate="<?= $p['rate'] ?? 0 ?>">
                                                 <?= htmlspecialchars($p['name']) ?>
                                             </option>
                                         <?php } ?>
@@ -411,6 +411,56 @@
 <script>
 let targetRow = null;
 const quotationMode = "<?= htmlspecialchars($mode) ?>";
+let allHeaderProductOptions = [];
+
+function cacheHeaderProductOptions() {
+    const headerProductSelect = document.getElementById('header_product_id');
+    if (!headerProductSelect) return;
+    allHeaderProductOptions = Array.from(headerProductSelect.options).map(opt => ({
+        value: opt.value,
+        text: opt.textContent,
+        customerId: opt.dataset.customerId || '',
+        desc: opt.dataset.desc || '',
+        rate: opt.dataset.rate || '0'
+    }));
+}
+
+function filterHeaderProductsByCustomer(customerId) {
+    const headerProductSelect = document.getElementById('header_product_id');
+    if (!headerProductSelect) return;
+
+    const selectedVal = headerProductSelect.value;
+    headerProductSelect.innerHTML = '<option value="">Select Product to Add</option>';
+
+    let hasSelected = false;
+    allHeaderProductOptions.forEach(opt => {
+        if (!opt.value) return;
+
+        const belongsToCustomer = String(opt.customerId) === String(customerId);
+        const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
+        if (customerId === '' || belongsToCustomer || isCommon) {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.text;
+            option.dataset.customerId = opt.customerId;
+            option.dataset.desc = opt.desc;
+            option.dataset.rate = opt.rate;
+            if (String(opt.value) === String(selectedVal)) {
+                option.selected = true;
+                hasSelected = true;
+            }
+            headerProductSelect.appendChild(option);
+        }
+    });
+
+    if (!hasSelected) {
+        headerProductSelect.value = '';
+    }
+
+    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+        jQuery(headerProductSelect).trigger('change.select2');
+    }
+}
 
 function setTargetRow(btn) {
     targetRow = btn.closest('.item-row');
@@ -685,6 +735,20 @@ function convertToWords(number) {
 // Initial calculation on page load if data exists
 window.addEventListener('load', () => {
     calculateGrandTotal();
+    cacheHeaderProductOptions();
+
+    const customerSelect = document.getElementById('quotation_customer_id');
+    if (customerSelect) {
+        filterHeaderProductsByCustomer(customerSelect.value || '');
+        customerSelect.addEventListener('change', function () {
+            filterHeaderProductsByCustomer(this.value || '');
+        });
+        if (window.jQuery) {
+            jQuery(customerSelect).on('select2:select', function () {
+                filterHeaderProductsByCustomer(this.value || '');
+            });
+        }
+    }
     
     // Form validation
     const form = document.querySelector('form');

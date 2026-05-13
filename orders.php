@@ -19,7 +19,7 @@ $error = '';
 
 // Fetch master data
 $customers = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-$products = $ai_db->aiGetQuery("SELECT id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, customer_id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_id FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC");
 $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 
@@ -655,6 +655,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <option value="">Select a Box</option>
                                 <?php foreach ($products as $p) { ?>
                                     <option value="<?= $p['id'] ?>"
+                                        data-customer-id="<?= intval($p['customer_id'] ?? 0) ?>"
                                         data-default-length="<?= htmlspecialchars((string) ($p['default_length'] ?? '')) ?>"
                                         data-default-width="<?= htmlspecialchars((string) ($p['default_width'] ?? '')) ?>"
                                         data-default-height="<?= htmlspecialchars((string) ($p['default_height'] ?? '')) ?>"
@@ -1539,6 +1540,17 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 customer: opt.dataset.customer
             }));
         }
+        let allProductOptions = [];
+        if (productSelect) {
+            allProductOptions = Array.from(productSelect.options).map(opt => ({
+                value: opt.value,
+                text: opt.textContent,
+                customerId: opt.dataset.customerId || '',
+                defaultLength: opt.dataset.defaultLength || '',
+                defaultWidth: opt.dataset.defaultWidth || '',
+                defaultHeight: opt.dataset.defaultHeight || ''
+            }));
+        }
         const duplexMaterialSelect = document.getElementById('duplex_material_id');
         const materialContextField = document.getElementById('order_material_context');
         const materialTypeField = document.getElementById('order_material_type_id');
@@ -1631,6 +1643,45 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             if (typeof window.refreshSelect2Dropdown === 'function') {
                 window.refreshSelect2Dropdown(costingSelect);
             }
+        }
+
+        function filterProductsByCustomer(custId) {
+            if (!productSelect) return;
+
+            const currentVal = productSelect.value;
+            productSelect.innerHTML = '<option value="">Select a Box</option>';
+
+            let valIsValid = false;
+            allProductOptions.forEach(opt => {
+                if (!opt.value) return;
+
+                const belongsToCustomer = String(opt.customerId) === String(custId);
+                const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
+                if (custId === '' || belongsToCustomer || isCommon) {
+                    const newOpt = document.createElement('option');
+                    newOpt.value = opt.value;
+                    newOpt.textContent = opt.text;
+                    newOpt.dataset.customerId = opt.customerId;
+                    newOpt.dataset.defaultLength = opt.defaultLength;
+                    newOpt.dataset.defaultWidth = opt.defaultWidth;
+                    newOpt.dataset.defaultHeight = opt.defaultHeight;
+
+                    if (String(opt.value) === String(currentVal)) {
+                        newOpt.selected = true;
+                        valIsValid = true;
+                    }
+                    productSelect.appendChild(newOpt);
+                }
+            });
+
+            if (!valIsValid) {
+                productSelect.value = '';
+            }
+
+            if (typeof window.refreshSelect2Dropdown === 'function') {
+                window.refreshSelect2Dropdown(productSelect);
+            }
+            updateProductSizePreview();
         }
 
         function upsertOption(selectElement, value, label, extraData = {}) {
@@ -1966,12 +2017,14 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             if (custSelect.value) {
                 updateBrands(custSelect.value, currentBrand);
                 filterCostingsByCustomer(custSelect.value);
+                filterProductsByCustomer(custSelect.value);
             }
 
             $custSelect.on('change select2:select', function () {
                 const custId = this.value;
                 updateBrands(custId);
                 filterCostingsByCustomer(custId);
+                filterProductsByCustomer(custId);
                 lastOrderPrefillKey = '';
                 fetchLastOrderPrefillBySelection();
             });
@@ -2271,6 +2324,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
 
                 const formData = new FormData(this);
                 formData.append('action', 'create_product_inline');
+                formData.append('customer_id', String(custSelect ? (custSelect.value || '') : ''));
 
                 fetch('ajax.php', {
                     method: 'POST',
@@ -2288,10 +2342,20 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                         if (!productId) return;
 
                         upsertOption(productSelect, productId, product.name || 'New Product', {
+                            customerId: product.customer_id || (custSelect ? (custSelect.value || '0') : '0'),
                             defaultLength: product.default_length,
                             defaultWidth: product.default_width,
                             defaultHeight: product.default_height
                         });
+                        allProductOptions = Array.from(productSelect.options).map(opt => ({
+                            value: opt.value,
+                            text: opt.textContent,
+                            customerId: opt.dataset.customerId || '',
+                            defaultLength: opt.dataset.defaultLength || '',
+                            defaultWidth: opt.dataset.defaultWidth || '',
+                            defaultHeight: opt.dataset.defaultHeight || ''
+                        }));
+                        filterProductsByCustomer(String(custSelect ? (custSelect.value || '') : ''));
                         productSelect.value = productId;
                         if (typeof window.refreshSelect2Dropdown === 'function') {
                             window.refreshSelect2Dropdown(productSelect);

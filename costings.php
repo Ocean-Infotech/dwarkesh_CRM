@@ -131,7 +131,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, name, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $materials = $ai_db->aiGetQuery("
         SELECT m.id, m.name, m.rate, m.weight, mt.name AS material_type_name
@@ -152,6 +152,7 @@
     foreach ($products as $product) {
         $productMap[$product['id']] = [
             'id' => intval($product['id']),
+            'customer_id' => intval($product['customer_id'] ?? 0),
             'name' => $product['name'],
             'default_length' => (float) ($product['default_length'] ?? 0),
             'default_width' => (float) ($product['default_width'] ?? 0),
@@ -784,7 +785,9 @@
                                                 <select name="product_id" id="product_id" class="form-select" required>
                                                     <option value="">Select Product</option>
                                                     <?php foreach ($products as $product) { ?>
-                                                        <option value="<?= $product['id'] ?>" <?= (isset($data['product_id']) && $data['product_id'] == $product['id']) ? 'selected' : '' ?>>
+                                                        <option value="<?= $product['id'] ?>"
+                                                            data-customer-id="<?= intval($product['customer_id'] ?? 0) ?>"
+                                                            <?= (isset($data['product_id']) && $data['product_id'] == $product['id']) ? 'selected' : '' ?>>
                                                             <?= htmlspecialchars($product['name']) ?>
                                                         </option>
                                                     <?php } ?>
@@ -1322,6 +1325,16 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastOrderPrefillKey = '';
     let lastObservedSelectionKey = '';
     let lastNoDataToastKey = '';
+    let allProductOptions = [];
+    if (productSelect) {
+        allProductOptions = Array.from(productSelect.options).map(function (opt) {
+            return {
+                value: opt.value,
+                text: opt.textContent,
+                customerId: opt.dataset.customerId || ''
+            };
+        });
+    }
 
     const customerModalInstance = customerQuickAddModal ? bootstrap.Modal.getOrCreateInstance(customerQuickAddModal) : null;
     const productModalInstance = productQuickAddModal ? bootstrap.Modal.getOrCreateInstance(productQuickAddModal) : null;
@@ -1365,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function upsertOption(selectElement, value, label) {
+    function upsertOption(selectElement, value, label, extraData) {
         if (!selectElement) {
             return;
         }
@@ -1381,6 +1394,50 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         option.textContent = label;
+        Object.keys(extraData || {}).forEach(function (key) {
+            const val = extraData[key];
+            if (val !== undefined && val !== null) {
+                option.dataset[key] = val;
+            }
+        });
+    }
+
+    function filterProductsByCustomer(customerId) {
+        if (!productSelect) {
+            return;
+        }
+
+        const selectedValue = productSelect.value;
+        productSelect.innerHTML = '<option value="">Select Product</option>';
+
+        let hasSelected = false;
+        allProductOptions.forEach(function (opt) {
+            if (!opt.value) {
+                return;
+            }
+
+            const belongsToCustomer = String(opt.customerId) === String(customerId);
+            const isCommon = String(opt.customerId) === '' || String(opt.customerId) === '0';
+            if (customerId === '' || belongsToCustomer || isCommon) {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.text;
+                option.dataset.customerId = opt.customerId;
+                if (String(opt.value) === String(selectedValue)) {
+                    option.selected = true;
+                    hasSelected = true;
+                }
+                productSelect.appendChild(option);
+            }
+        });
+
+        if (!hasSelected) {
+            productSelect.value = '';
+        }
+
+        if (typeof refreshSelect2Dropdown === 'function') {
+            refreshSelect2Dropdown(productSelect);
+        }
     }
 
     function setModalMaterialTypeByName(typeName) {
@@ -1484,7 +1541,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function appendProductData(product) {
         products[product.id] = product;
-        upsertOption(productSelect, product.id, product.name);
+        upsertOption(productSelect, product.id, product.name, {
+            customerId: product.customer_id || (customerSelect ? (customerSelect.value || '0') : '0')
+        });
+        allProductOptions = Array.from(productSelect.options).map(function (opt) {
+            return {
+                value: opt.value,
+                text: opt.textContent,
+                customerId: opt.dataset.customerId || ''
+            };
+        });
+        filterProductsByCustomer(String(customerSelect ? (customerSelect.value || '') : ''));
         productSelect.value = String(product.id);
         applyProductDefaults(product.id, true);
     }
@@ -1842,6 +1909,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     populateBrandOptions(customerSelect.value, brandSelect.dataset.selectedBrand || brandSelect.value);
+    filterProductsByCustomer(customerSelect.value || '');
     renderLinerItems();
     renderDuplexItems();
     if (productSelect.value) {
@@ -1970,6 +2038,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const formData = new FormData(this);
             formData.append('action', 'create_product_inline');
+            formData.append('customer_id', String(customerSelect ? (customerSelect.value || '') : ''));
 
             fetch('ajax.php', {
                 method: 'POST',
@@ -2046,6 +2115,7 @@ document.addEventListener('DOMContentLoaded', function () {
     jQuery(customerSelect).on('change select2:select', function () {
         brandSelect.dataset.selectedBrand = '';
         populateBrandOptions(this.value, '');
+        filterProductsByCustomer(this.value || '');
         lastOrderPrefillKey = '';
         fetchLastOrderPrefillForCosting();
     });
