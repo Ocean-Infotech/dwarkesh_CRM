@@ -19,7 +19,7 @@ $error = '';
 
 // Fetch master data
 $customers = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-$products = $ai_db->aiGetQuery("SELECT id, name, stock_qty FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_id FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC");
 $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 
@@ -654,7 +654,11 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <select name="product_id" id="product_id" class="form-select">
                                 <option value="">Select a Box</option>
                                 <?php foreach ($products as $p) { ?>
-                                    <option value="<?= $p['id'] ?>" <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
+                                    <option value="<?= $p['id'] ?>"
+                                        data-default-length="<?= htmlspecialchars((string) ($p['default_length'] ?? '')) ?>"
+                                        data-default-width="<?= htmlspecialchars((string) ($p['default_width'] ?? '')) ?>"
+                                        data-default-height="<?= htmlspecialchars((string) ($p['default_height'] ?? '')) ?>"
+                                        <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($p['name']) ?> (Stock: <?= number_format($p['stock_qty'], 2) ?>)
                                     </option>
                                 <?php } ?>
@@ -662,6 +666,8 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <button type="button" class="btn btn-theme" data-bs-toggle="modal"
                                 data-bs-target="#orderProductQuickAddModal">Add New</button>
                         </div>
+                        <input type="text" id="product_size_preview" class="form-control mt-2"
+                            placeholder="Size will appear here" readonly>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label">Costing Number</label>
@@ -1510,6 +1516,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         const custSelect = document.getElementById('customer_id');
         const brandSelect = document.getElementById('brand_name');
         const productSelect = document.getElementById('product_id');
+        const productSizePreview = document.getElementById('product_size_preview');
         const costingSelect = document.getElementById('costing_id');
         const customerQuickAddForm = document.getElementById('orderCustomerQuickAddForm');
         const productQuickAddForm = document.getElementById('orderProductQuickAddForm');
@@ -1632,8 +1639,12 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 selectElement.appendChild(existing);
             }
             existing.textContent = label;
-            if (extraData.rate !== undefined) existing.dataset.rate = extraData.rate;
-            if (extraData.qty !== undefined) existing.dataset.qty = extraData.qty;
+            Object.keys(extraData || {}).forEach(key => {
+                const val = extraData[key];
+                if (val !== undefined && val !== null) {
+                    existing.dataset[key] = val;
+                }
+            });
         }
 
         function parseNumber(value) {
@@ -1667,6 +1678,36 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             }
 
             phoneInputEl.value = selected.dataset.phone || '';
+        }
+
+        function formatDimension(value) {
+            const num = parseFloat(value);
+            if (!Number.isFinite(num) || num <= 0) {
+                return '';
+            }
+            return num.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+        }
+
+        function updateProductSizePreview() {
+            if (!productSizePreview) return;
+
+            if (!productSelect || !productSelect.value) {
+                productSizePreview.value = '';
+                return;
+            }
+
+            const selected = productSelect.options[productSelect.selectedIndex];
+            if (!selected) {
+                productSizePreview.value = '';
+                return;
+            }
+
+            const length = formatDimension(selected.dataset.defaultLength || '');
+            const width = formatDimension(selected.dataset.defaultWidth || '');
+            const height = formatDimension(selected.dataset.defaultHeight || '');
+            const parts = [length, width, height].filter(Boolean);
+
+            productSizePreview.value = parts.length ? `${parts.join(' x ')} cm` : '';
         }
 
         function renderLinerItems() {
@@ -1837,6 +1878,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             if (productSelect && data.product_id) {
                                 productSelect.value = data.product_id;
                                 if (typeof window.refreshSelect2Dropdown === 'function') window.refreshSelect2Dropdown(productSelect);
+                                updateProductSizePreview();
                             }
 
                             // Fill Brand (Refresh Brands list for the customer and select the one from costing)
@@ -1925,6 +1967,13 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             jQuery(duplexMaterialSelect).on('change', function () {
                 fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
             });
+        }
+
+        if (productSelect) {
+            jQuery(productSelect).on('change', function () {
+                updateProductSizePreview();
+            });
+            updateProductSizePreview();
         }
 
         if (linerMaterialSelect && linerMaterialSelect.value) {
@@ -2108,8 +2157,16 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                         const productId = String(product.id || '');
                         if (!productId) return;
 
-                        upsertOption(productSelect, productId, product.name || 'New Product');
+                        upsertOption(productSelect, productId, product.name || 'New Product', {
+                            defaultLength: product.default_length,
+                            defaultWidth: product.default_width,
+                            defaultHeight: product.default_height
+                        });
                         productSelect.value = productId;
+                        if (typeof window.refreshSelect2Dropdown === 'function') {
+                            window.refreshSelect2Dropdown(productSelect);
+                        }
+                        updateProductSizePreview();
 
                         hideModal(productQuickAddModal);
                         resetQuickForm(productQuickAddForm);

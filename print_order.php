@@ -13,13 +13,17 @@ $sql = "SELECT o.*,
         c2.contact_name as duplex_delivery_name,
         c3.contact_name as printing_by_name,
         c4.contact_name as print_delivery_name,
-        c5.contact_name as laminas_delivery_name
+        c5.contact_name as laminas_delivery_name,
+        p.default_length as product_default_length,
+        p.default_width as product_default_width,
+        p.default_height as product_default_height
         FROM tbl_orders o
         LEFT JOIN tbl_customer c1 ON o.liner_delivery_id = c1.id
         LEFT JOIN tbl_customer c2 ON o.duplex_delivery_id = c2.id
         LEFT JOIN tbl_customer c3 ON o.printing_by_id = c3.id
         LEFT JOIN tbl_customer c4 ON o.print_delivery_id = c4.id
         LEFT JOIN tbl_customer c5 ON o.laminas_delivery_id = c5.id
+        LEFT JOIN tbl_product p ON o.product_id = p.id
         WHERE o.id = $id AND o.is_deleted = 0";
 
 $orderRes = $ai_db->aiGetQuery($sql);
@@ -27,6 +31,18 @@ if (empty($orderRes)) {
     die("Order not found");
 }
 $order = $orderRes[0];
+
+$printProductSizeParts = [];
+if (!empty($order['product_default_length']) && floatval($order['product_default_length']) > 0) {
+    $printProductSizeParts[] = rtrim(rtrim(number_format((float) $order['product_default_length'], 2, '.', ''), '0'), '.');
+}
+if (!empty($order['product_default_width']) && floatval($order['product_default_width']) > 0) {
+    $printProductSizeParts[] = rtrim(rtrim(number_format((float) $order['product_default_width'], 2, '.', ''), '0'), '.');
+}
+if (!empty($order['product_default_height']) && floatval($order['product_default_height']) > 0) {
+    $printProductSizeParts[] = rtrim(rtrim(number_format((float) $order['product_default_height'], 2, '.', ''), '0'), '.');
+}
+$printProductSize = !empty($printProductSizeParts) ? implode(' x ', $printProductSizeParts) . ' cm' : '---';
 
 // Fetch items
 $items = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id = $id ORDER BY id ASC");
@@ -105,8 +121,8 @@ if (!file_exists($logoPath)) {
             <tr>
                 <td class="label-cell">Total Quantity</td>
                 <td class="value-cell"><?= number_format($order['box_qty']) ?> <?= htmlspecialchars($order['box_qty_unit']) ?></td>
-                <td class="label-cell d-none">Sale Rate</td>
-                <td class="value-cell d-none">₹ <?= number_format($order['rate'], 2) ?></td>
+                <td class="label-cell">Product Size</td>
+                <td class="value-cell"><?= htmlspecialchars($printProductSize) ?></td>
             </tr>
             <tr>
                 <td class="label-cell">Sheet Size</td>
