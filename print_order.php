@@ -132,8 +132,8 @@ if (!file_exists($logoPath)) {
             </tr>
         </table>
 
-        <div class="row g-0">
-            <div class="col-6 pe-2">
+        <div class="row g-0 dual-detail-row">
+            <div class="col-6">
                 <div class="section-header"><i class="bi bi-layers-fill"></i> Liner Details</div>
                 <table class="items-table">
                     <thead>
@@ -161,7 +161,7 @@ if (!file_exists($logoPath)) {
                     <div class="mt-1"><span class="badge-status">Top Count: <?= htmlspecialchars($order['top_count']) ?></span></div>
                 </div>
             </div>
-            <div class="col-6 ps-2">
+            <div class="col-6">
                 <div class="section-header"><i class="bi bi-box-seam-fill"></i> Duplex Details</div>
                 <table class="items-table">
                     <thead>
