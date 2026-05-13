@@ -68,7 +68,7 @@ function parse_order_items_json($rawJson)
 
         $material_id = intval($item['material_id'] ?? 0);
         $name = trim((string) ($item['name'] ?? ''));
-
+        $rate = is_numeric($item['rate'] ?? null) ? round((float) $item['rate'], 2) : 0;
         $qty = is_numeric($item['qty'] ?? null) ? round((float) $item['qty'], 2) : 0;
 
         if ($name === '' && $material_id <= 0) {
@@ -78,6 +78,7 @@ function parse_order_items_json($rawJson)
         $items[] = [
             'material_id' => $material_id,
             'name' => $name,
+            'rate' => $rate,
             'qty' => $qty
         ];
     }
@@ -210,7 +211,7 @@ if (isset($_POST['btn_submit'])) {
     $product_id = intval($_POST['product_id'] ?? 0);
     $box_qty = floatval($_POST['box_qty'] ?? 0);
     $upps = floatval($_POST['upps'] ?? 0);
-
+    $rate = floatval($_POST['rate'] ?? 0);
     $costing_id = intval($_POST['costing_id'] ?? 0);
     $sheet_length = floatval($_POST['sheet_length'] ?? 0);
     $sheet_width = floatval($_POST['sheet_width'] ?? 0);
@@ -237,6 +238,21 @@ if (isset($_POST['btn_submit'])) {
         }
     }
 
+    // Stock Validation Backend
+    if (empty($error)) {
+        $prod_stock_data = $ai_db->aiGetQuery("SELECT stock_qty FROM tbl_product WHERE id='$product_id' LIMIT 1");
+        $available_stock = floatval($prod_stock_data[0]['stock_qty'] ?? 0);
+        $original_qty = 0;
+        if ($mode === 'edit') {
+            $old_order_res = $ai_db->aiGetQuery("SELECT product_id, box_qty FROM $table WHERE id='$id' LIMIT 1");
+            if (!empty($old_order_res) && $old_order_res[0]['product_id'] == $product_id) {
+                $original_qty = floatval($old_order_res[0]['box_qty'] ?? 0);
+            }
+        }
+        if ($box_qty > ($available_stock + $original_qty)) {
+            $error = "Insufficient stock. Available: " . ($available_stock + $original_qty) . " PCS.";
+        }
+    }
 
     if (empty($error) && isset($_FILES['offset_image']) && intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
         if (intval($_FILES['offset_image']['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
@@ -292,7 +308,7 @@ if (isset($_POST['btn_submit'])) {
         $set_sql_field('box_qty', $box_qty);
         $set_sql_field('box_qty_unit', addslashes($_POST['box_qty_unit'] ?? 'PCS'));
         $set_sql_field('upps', $upps);
-
+        $set_sql_field('rate', $rate);
         $set_sql_field('costing_id', $costing_id);
         $set_sql_field('sheet_length', $sheet_length);
         $set_sql_field('sheet_width', $sheet_width);
@@ -347,6 +363,10 @@ if (isset($_POST['btn_submit'])) {
             $new_order_id = intval($ai_db->aiLastInsert());
             $save_order_items($new_order_id, $liner_items, $duplex_items);
 
+            // Update Stock
+            $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
+            $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Placed: #$order_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
             // Update BOM Material Stock
             $update_bom_stock($product_id, $box_qty, 'minus', "Order Placed: #$order_no");
 
@@ -361,19 +381,28 @@ if (isset($_POST['btn_submit'])) {
             $ai_db->aiQuery("UPDATE $table SET $sql_fields, updated_by='" . ($_SESSION['aid'] ?? 0) . "' WHERE id='$id'");
             $save_order_items($id, $liner_items, $duplex_items);
 
-            // Update Material Stock
+            // Update Stock
             if ($old_product_id == $product_id) {
                 $diff = $box_qty - $old_box_qty;
                 if ($diff != 0) {
-                    $action = ($diff > 0) ? 'minus' : 'plus';
+                    $op = ($diff > 0) ? '-' : '+';
                     $abs_diff = abs($diff);
+                    $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty $op $abs_diff WHERE id = $product_id");
+                    $action = ($diff > 0) ? 'minus' : 'plus';
+                    $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$abs_diff', action_type='$action', remarks='Order Edited: #$order_no (Qty Changed)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
                     // Update BOM Material Stock
                     $update_bom_stock($product_id, $abs_diff, $action, "Order Edited: #$order_no (Qty Changed)");
                 }
             } else {
-                // Revert BOM Material Stock for old product
+                // Add back to old product
+                $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $old_box_qty WHERE id = $old_product_id");
+                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$old_product_id', qty='$old_box_qty', action_type='plus', remarks='Order Product Changed: #$order_no (Old Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
                 $update_bom_stock($old_product_id, $old_box_qty, 'plus', "Order Product Changed: #$order_no (Old Product Revert)");
-                // Deduct BOM Material Stock for new product
+
+                // Deduct from new product
+                $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty - $box_qty WHERE id = $product_id");
+                $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$product_id', qty='$box_qty', action_type='minus', remarks='Order Product Changed: #$order_no (New Product)', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
                 $update_bom_stock($product_id, $box_qty, 'minus', "Order Product Changed: #$order_no (New Product Deduction)");
             }
 
@@ -395,6 +424,9 @@ if ($mode === 'delete' && $id > 0) {
         $b_qty = floatval($order_res[0]['box_qty']);
         $o_no = $order_res[0]['order_no'];
 
+        $ai_db->aiQuery("UPDATE tbl_product SET stock_qty = stock_qty + $b_qty WHERE id = $p_id");
+        $ai_db->aiQuery("INSERT INTO tbl_stock_history SET item_type='product', item_id='$p_id', qty='$b_qty', action_type='plus', remarks='Order Deleted: #$o_no', created_by='" . ($_SESSION['aid'] ?? 0) . "'");
+
         // Revert BOM Material Stock
         $update_bom_stock($p_id, $b_qty, 'plus', "Order Deleted: #$o_no");
     }
@@ -415,7 +447,7 @@ if ($mode === 'edit' && $id > 0) {
             $item = [
                 'material_id' => intval($itemRow['material_id'] ?? 0),
                 'name' => (string) ($itemRow['material_name'] ?? ($itemRow['name'] ?? '')),
-
+                'rate' => (float) ($itemRow['rate'] ?? 0),
                 'qty' => (float) ($itemRow['qty'] ?? ($itemRow['pcs'] ?? 0))
             ];
 
@@ -561,7 +593,11 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                             <span class="input-group-text">Upps</span>
                         </div>
                     </div>
-
+                    <div class="col-md-3">
+                        <label class="form-label">Rate</label>
+                        <input type="number" step="0.01" min="0.01" name="rate" class="form-control"
+                            value="<?= htmlspecialchars($data['rate'] ?? '') ?>" placeholder="Rate">
+                    </div>
 
                     <!-- Row 2 -->
                     <div class="col-md-4">
@@ -647,6 +683,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         <option value="">Select Liner</option>
                                                         <?php foreach ($liners as $l) { ?>
                                                             <option value="<?= $l['id'] ?>"
+                                                                data-rate="<?= htmlspecialchars($l['rate'] ?? '0') ?>"
                                                                 data-qty="<?= htmlspecialchars($l['weight'] ?? '0') ?>">
                                                                 <?= htmlspecialchars($l['name']) ?>
                                                             </option>
@@ -658,7 +695,10 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         New</button>
                                                 </div>
                                             </div>
-
+                                            <div class="col-md-2">
+                                                <input type="text" id="liner_rate_input"
+                                                    class="form-control form-control-sm" placeholder="rate">
+                                            </div>
                                             <div class="col-md-2">
                                                 <input type="text" id="liner_qty_input" class="form-control form-control-sm"
                                                     placeholder="qty">
@@ -673,7 +713,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <thead>
                                                 <tr>
                                                     <th>Name</th>
-
+                                                    <th>Rate</th>
                                                     <th>Pcs</th>
                                                     <th class="text-center">Action</th>
                                                 </tr>
@@ -733,6 +773,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         <option value="">Select Duplex</option>
                                                         <?php foreach ($duplexes as $d) { ?>
                                                             <option value="<?= $d['id'] ?>"
+                                                                data-rate="<?= htmlspecialchars($d['rate'] ?? '0') ?>"
                                                                 data-qty="<?= htmlspecialchars($d['weight'] ?? '0') ?>">
                                                                 <?= htmlspecialchars($d['name']) ?>
                                                             </option>
@@ -744,7 +785,10 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                                         New</button>
                                                 </div>
                                             </div>
-
+                                            <div class="col-md-2">
+                                                <input type="text" id="duplex_rate_input"
+                                                    class="form-control form-control-sm" placeholder="rate">
+                                            </div>
                                             <div class="col-md-2">
                                                 <input type="text" id="duplex_qty_input"
                                                     class="form-control form-control-sm" placeholder="qty">
@@ -759,7 +803,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                             <thead>
                                                 <tr>
                                                     <th>Name</th>
-
+                                                    <th>Rate</th>
                                                     <th>Pcs</th>
                                                     <th class="text-center">Action</th>
                                                 </tr>
@@ -1147,7 +1191,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <th>Customer</th>
                                 <th>Brand</th>
                                 <th>Box Name</th>
-
+                                <th>Rate</th>
                                 <!-- <th>Plate</th>
                                 <th>Print</th>
                                 <th>Die</th>
@@ -1175,9 +1219,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                         <td>
                                             <?= htmlspecialchars($row['product_name']) ?>
                                         </td>
-                                        <!-- <td>Rs.
-
-                                        </td> -->
+                                        <td>Rs.
+                                            <?= number_format((float) $row['rate'], 2) ?>
+                                        </td>
                                         <!-- <td><?= htmlspecialchars($row['plate_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['print_status'] ?? '-') ?></td>
                                         <td><?= htmlspecialchars($row['die_status'] ?? '-') ?></td>
@@ -1307,7 +1351,10 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                 <input type="text" name="name" class="form-control" placeholder="Enter product name"
                                     required>
                             </div>
-
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Rate</label>
+                                <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter rate">
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">HSN Code</label>
                                 <input type="text" name="hsn_code" class="form-control" placeholder="Enter HSN Code">
@@ -1424,7 +1471,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         const productStockMap = <?= json_encode(array_column($products, 'stock_qty', 'id')) ?>;
         const customerBrandsMap = <?= json_encode($customerBrandsMap) ?>;
         const currentBrand = "<?= htmlspecialchars($data['brand_name'] ?? '') ?>";
-
+        
         <?php if (!empty($error)) { ?>
             if (typeof showToast === 'function') {
                 showToast('Validation Error', "<?= addslashes($error) ?>", 'error');
@@ -1578,7 +1625,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 return;
             }
 
-
+            rateEl.value = selected.dataset.rate || '0';
             qtyEl.value = '';
         }
 
@@ -1644,7 +1691,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         function addLineItem(kind) {
             const isLiner = kind === 'liner';
             const selectEl = isLiner ? linerMaterialSelect : duplexMaterialSelect;
-            const rateEl = null;
+            const rateEl = isLiner ? linerRateInput : duplexRateInput;
             const qtyEl = isLiner ? linerQtyInput : duplexQtyInput;
             const target = isLiner ? linerItems : duplexItems;
 
@@ -1658,6 +1705,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             target.push({
                 material_id: parseInt(selectEl.value, 10) || 0,
                 name: (selected.textContent || '').trim(),
+                rate: parseNumber(rateEl.value),
                 qty: parseNumber(qtyEl.value)
             });
 
@@ -1908,236 +1956,285 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                     return;
                 }
 
+                // Stock Validation
+                const pid = productSelect ? productSelect.value : 0;
+                const qty = parseFloat(document.getElementsByName('box_qty')[0]?.value || 0);
+                const available = parseFloat(productStockMap[pid] || 0);
+                let originalQty = 0;
+                <?php if ($mode === 'edit') { ?>
+                    if (pid == "<?= $data['product_id'] ?? 0 ?>") {
+                        originalQty = parseFloat("<?= $data['box_qty'] ?? 0 ?>");
+                    }
+                <?php } ?>
+
+                if (qty > (available + originalQty)) {
+                    event.preventDefault();
+                    if (typeof showToast === 'function') {
+                        showToast('Insufficient Stock', `Available stock is only ${available + originalQty} PCS.`, 'error');
+                    } else {
+                        alert(`Insufficient Stock. Available: ${available + originalQty} PCS.`);
+                    }
+                }
+            });
+
+            // Live validation on box_qty change
+            const boxQtyInput = document.getElementsByName('box_qty')[0];
+            if (boxQtyInput) {
+                const liveCheck = function () {
+                    const pid = productSelect ? productSelect.value : 0;
+                    if (!pid) return;
+                    const qty = parseFloat(this.value || 0);
+                    const available = parseFloat(productStockMap[pid] || 0);
+                    let originalQty = 0;
+                    <?php if ($mode === 'edit') { ?>
+                        if (pid == "<?= $data['product_id'] ?? 0 ?>") {
+                            originalQty = parseFloat("<?= $data['box_qty'] ?? 0 ?>");
+                        }
+                    <?php } ?>
+
+                    if (qty > (available + originalQty)) {
+                        if (typeof showToast === 'function') {
+                            showToast('Insufficient Stock', `Stock available: ${available + originalQty} PCS`, 'warning');
+                        }
+                    }
+                };
+                boxQtyInput.addEventListener('change', liveCheck);
+                if (productSelect) productSelect.addEventListener('change', () => {
+                    boxQtyInput.dispatchEvent(new Event('change'));
+                });
             }
+        }
 
         if (addLinerItemButton) {
-                addLinerItemButton.addEventListener('click', function () {
-                    addLineItem('liner');
-                });
-            }
+            addLinerItemButton.addEventListener('click', function () {
+                addLineItem('liner');
+            });
+        }
 
-            if (addDuplexItemButton) {
-                addDuplexItemButton.addEventListener('click', function () {
-                    addLineItem('duplex');
-                });
-            }
+        if (addDuplexItemButton) {
+            addDuplexItemButton.addEventListener('click', function () {
+                addLineItem('duplex');
+            });
+        }
 
-            if (linerItemsTableBody) {
-                linerItemsTableBody.addEventListener('click', function (event) {
-                    const deleteButton = event.target.closest('.remove-liner-item');
-                    if (!deleteButton) return;
-                    const index = parseInt(deleteButton.dataset.index, 10);
-                    if (Number.isInteger(index) && index >= 0) {
-                        linerItems.splice(index, 1);
-                        renderLinerItems();
-                    }
-                });
-            }
+        if (linerItemsTableBody) {
+            linerItemsTableBody.addEventListener('click', function (event) {
+                const deleteButton = event.target.closest('.remove-liner-item');
+                if (!deleteButton) return;
+                const index = parseInt(deleteButton.dataset.index, 10);
+                if (Number.isInteger(index) && index >= 0) {
+                    linerItems.splice(index, 1);
+                    renderLinerItems();
+                }
+            });
+        }
 
-            if (duplexItemsTableBody) {
-                duplexItemsTableBody.addEventListener('click', function (event) {
-                    const deleteButton = event.target.closest('.remove-duplex-item');
-                    if (!deleteButton) return;
-                    const index = parseInt(deleteButton.dataset.index, 10);
-                    if (Number.isInteger(index) && index >= 0) {
-                        duplexItems.splice(index, 1);
-                        renderDuplexItems();
-                    }
-                });
-            }
+        if (duplexItemsTableBody) {
+            duplexItemsTableBody.addEventListener('click', function (event) {
+                const deleteButton = event.target.closest('.remove-duplex-item');
+                if (!deleteButton) return;
+                const index = parseInt(deleteButton.dataset.index, 10);
+                if (Number.isInteger(index) && index >= 0) {
+                    duplexItems.splice(index, 1);
+                    renderDuplexItems();
+                }
+            });
+        }
 
-            if (customerQuickAddForm) {
-                customerQuickAddForm.addEventListener('submit', function (event) {
-                    event.preventDefault();
-                    if (!this.checkValidity()) {
-                        this.classList.add('was-validated');
-                        return;
-                    }
+        if (customerQuickAddForm) {
+            customerQuickAddForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
 
-                    const submitButton = document.getElementById('orderCustomerQuickAddSubmit');
-                    toggleSubmitButton(submitButton, true, 'Saving...');
+                const submitButton = document.getElementById('orderCustomerQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
 
-                    const formData = new FormData(this);
-                    formData.append('action', 'create_customer_inline');
+                const formData = new FormData(this);
+                formData.append('action', 'create_customer_inline');
 
-                    fetch('ajax.php', {
-                        method: 'POST',
-                        body: formData
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Customer save failed.');
+                            return;
+                        }
+
+                        const customer = data.customer || {};
+                        const customerId = String(customer.id || '');
+                        if (!customerId) return;
+
+                        customerBrandsMap[customerId] = Array.isArray(customer.brand_names) ? customer.brand_names : [];
+                        upsertOption(custSelect, customerId, customer.contact_name || 'New Customer');
+                        custSelect.value = customerId;
+                        if (typeof refreshSelect2Dropdown === 'function') {
+                            refreshSelect2Dropdown(custSelect);
+                        }
+
+                        const selectedBrand = customerBrandsMap[customerId].length ? customerBrandsMap[customerId][0] : '';
+                        updateBrands(customerId, selectedBrand);
+                        filterCostingsByCustomer(customerId);
+
+                        hideModal(customerQuickAddModal);
+                        resetQuickForm(customerQuickAddForm);
                     })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (!data.success) {
-                                handleAjaxError(data.message || 'Customer save failed.');
-                                return;
-                            }
-
-                            const customer = data.customer || {};
-                            const customerId = String(customer.id || '');
-                            if (!customerId) return;
-
-                            customerBrandsMap[customerId] = Array.isArray(customer.brand_names) ? customer.brand_names : [];
-                            upsertOption(custSelect, customerId, customer.contact_name || 'New Customer');
-                            custSelect.value = customerId;
-                            if (typeof refreshSelect2Dropdown === 'function') {
-                                refreshSelect2Dropdown(custSelect);
-                            }
-
-                            const selectedBrand = customerBrandsMap[customerId].length ? customerBrandsMap[customerId][0] : '';
-                            updateBrands(customerId, selectedBrand);
-                            filterCostingsByCustomer(customerId);
-
-                            hideModal(customerQuickAddModal);
-                            resetQuickForm(customerQuickAddForm);
-                        })
-                        .catch(() => {
-                            handleAjaxError('An unexpected error occurred.');
-                        })
-                        .finally(() => {
-                            toggleSubmitButton(submitButton, false);
-                        });
-                });
-            }
-
-            if (productQuickAddForm) {
-                productQuickAddForm.addEventListener('submit', function (event) {
-                    event.preventDefault();
-                    if (!this.checkValidity()) {
-                        this.classList.add('was-validated');
-                        return;
-                    }
-
-                    const submitButton = document.getElementById('orderProductQuickAddSubmit');
-                    toggleSubmitButton(submitButton, true, 'Saving...');
-
-                    const formData = new FormData(this);
-                    formData.append('action', 'create_product_inline');
-
-                    fetch('ajax.php', {
-                        method: 'POST',
-                        body: formData
+                    .catch(() => {
+                        handleAjaxError('An unexpected error occurred.');
                     })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (!data.success) {
-                                handleAjaxError(data.message || 'Product save failed.');
-                                return;
-                            }
-
-                            const product = data.product || {};
-                            const productId = String(product.id || '');
-                            if (!productId) return;
-
-                            upsertOption(productSelect, productId, product.name || 'New Product');
-                            productSelect.value = productId;
-
-                            hideModal(productQuickAddModal);
-                            resetQuickForm(productQuickAddForm);
-                        })
-                        .catch(() => {
-                            handleAjaxError('Unable to save product right now.');
-                        })
-                        .finally(() => {
-                            toggleSubmitButton(submitButton, false);
-                        });
-                });
-            }
-
-            if (openMaterialModalButtons.length) {
-                openMaterialModalButtons.forEach(function (button) {
-                    button.addEventListener('click', function () {
-                        const context = this.dataset.materialContext || 'liner';
-                        const typeName = this.dataset.materialTypeName || '';
-                        if (materialContextField) materialContextField.value = context;
-                        if (materialQuickAddTitle) materialQuickAddTitle.textContent = `Add ${typeName || 'Material'}`;
-                        resetQuickForm(materialQuickAddForm);
-                        setModalMaterialTypeByName(typeName);
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
                     });
-                });
-            }
+            });
+        }
 
-            if (materialQuickAddForm) {
-                materialQuickAddForm.addEventListener('submit', function (event) {
-                    event.preventDefault();
-                    if (!this.checkValidity()) {
-                        this.classList.add('was-validated');
-                        return;
-                    }
+        if (productQuickAddForm) {
+            productQuickAddForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
 
-                    const submitButton = document.getElementById('orderMaterialQuickAddSubmit');
-                    toggleSubmitButton(submitButton, true, 'Saving...');
+                const submitButton = document.getElementById('orderProductQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
 
-                    const formData = new FormData(this);
-                    formData.append('action', 'create_material_inline');
+                const formData = new FormData(this);
+                formData.append('action', 'create_product_inline');
 
-                    fetch('ajax.php', {
-                        method: 'POST',
-                        body: formData
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Product save failed.');
+                            return;
+                        }
+
+                        const product = data.product || {};
+                        const productId = String(product.id || '');
+                        if (!productId) return;
+
+                        upsertOption(productSelect, productId, product.name || 'New Product');
+                        productSelect.value = productId;
+
+                        hideModal(productQuickAddModal);
+                        resetQuickForm(productQuickAddForm);
                     })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (!data.success) {
-                                handleAjaxError(data.message || 'Material save failed.');
-                                return;
-                            }
+                    .catch(() => {
+                        handleAjaxError('Unable to save product right now.');
+                    })
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
+                    });
+            });
+        }
 
-                            const material = data.material || {};
-                            const materialId = String(material.id || '');
-                            if (!materialId) return;
-
-                            const materialQty = material.weight !== undefined ? material.weight : 0;
-
-                            const context = materialContextField ? materialContextField.value : 'liner';
-                            if (context === 'duplex') {
-                                upsertOption(duplexMaterialSelect, materialId, material.name || 'New Material', {
-                                    qty: materialQty
-                                });
-                                duplexMaterialSelect.value = materialId;
-                                fillMaterialInputs(duplexMaterialSelect, null, duplexQtyInput);
-                            } else {
-                                upsertOption(linerMaterialSelect, materialId, material.name || 'New Material', {
-                                    qty: materialQty
-                                });
-                                linerMaterialSelect.value = materialId;
-                                fillMaterialInputs(linerMaterialSelect, null, linerQtyInput);
-                            }
-
-                            hideModal(materialQuickAddModal);
-                            resetQuickForm(materialQuickAddForm);
-                        })
-                        .catch(() => {
-                            handleAjaxError('Unable to save material right now.');
-                        })
-                        .finally(() => {
-                            toggleSubmitButton(submitButton, false);
-                        });
+        if (openMaterialModalButtons.length) {
+            openMaterialModalButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    const context = this.dataset.materialContext || 'liner';
+                    const typeName = this.dataset.materialTypeName || '';
+                    if (materialContextField) materialContextField.value = context;
+                    if (materialQuickAddTitle) materialQuickAddTitle.textContent = `Add ${typeName || 'Material'}`;
+                    resetQuickForm(materialQuickAddForm);
+                    setModalMaterialTypeByName(typeName);
                 });
-            }
+            });
+        }
 
-            document.addEventListener('click', function (e) {
-                if (e.target.closest('#addOrderModalBrandBtn')) {
-                    const container = document.getElementById('orderModalBrandRepeater');
-                    if (!container) return;
-                    container.insertAdjacentHTML('beforeend', `
+        if (materialQuickAddForm) {
+            materialQuickAddForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                if (!this.checkValidity()) {
+                    this.classList.add('was-validated');
+                    return;
+                }
+
+                const submitButton = document.getElementById('orderMaterialQuickAddSubmit');
+                toggleSubmitButton(submitButton, true, 'Saving...');
+
+                const formData = new FormData(this);
+                formData.append('action', 'create_material_inline');
+
+                fetch('ajax.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            handleAjaxError(data.message || 'Material save failed.');
+                            return;
+                        }
+
+                        const material = data.material || {};
+                        const materialId = String(material.id || '');
+                        if (!materialId) return;
+                        const materialRate = material.rate !== undefined ? material.rate : 0;
+                        const materialQty = material.weight !== undefined ? material.weight : 0;
+
+                        const context = materialContextField ? materialContextField.value : 'liner';
+                        if (context === 'duplex') {
+                            upsertOption(duplexMaterialSelect, materialId, material.name || 'New Material', {
+                                rate: materialRate,
+                                qty: materialQty
+                            });
+                            duplexMaterialSelect.value = materialId;
+                            fillMaterialInputs(duplexMaterialSelect, duplexRateInput, duplexQtyInput);
+                        } else {
+                            upsertOption(linerMaterialSelect, materialId, material.name || 'New Material', {
+                                rate: materialRate,
+                                qty: materialQty
+                            });
+                            linerMaterialSelect.value = materialId;
+                            fillMaterialInputs(linerMaterialSelect, linerRateInput, linerQtyInput);
+                        }
+
+                        hideModal(materialQuickAddModal);
+                        resetQuickForm(materialQuickAddForm);
+                    })
+                    .catch(() => {
+                        handleAjaxError('Unable to save material right now.');
+                    })
+                    .finally(() => {
+                        toggleSubmitButton(submitButton, false);
+                    });
+            });
+        }
+
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('#addOrderModalBrandBtn')) {
+                const container = document.getElementById('orderModalBrandRepeater');
+                if (!container) return;
+                container.insertAdjacentHTML('beforeend', `
                     <div class="input-group input-group-sm mb-2 order-modal-brand-item">
                         <span class="input-group-text"><i class="bi bi-tag"></i></span>
                         <input type="text" name="brand_names[]" class="form-control" placeholder="Brand Name">
                         <button type="button" class="btn btn-danger removeOrderModalBrand"><i class="bi bi-trash"></i></button>
                     </div>
                 `);
-                }
+            }
 
-                if (e.target.closest('.removeOrderModalBrand')) {
-                    const item = e.target.closest('.order-modal-brand-item');
-                    const container = document.getElementById('orderModalBrandRepeater');
-                    if (container && container.querySelectorAll('.order-modal-brand-item').length > 1) {
-                        item.remove();
-                    } else if (item) {
-                        const input = item.querySelector('input');
-                        if (input) input.value = '';
-                    }
+            if (e.target.closest('.removeOrderModalBrand')) {
+                const item = e.target.closest('.order-modal-brand-item');
+                const container = document.getElementById('orderModalBrandRepeater');
+                if (container && container.querySelectorAll('.order-modal-brand-item').length > 1) {
+                    item.remove();
+                } else if (item) {
+                    const input = item.querySelector('input');
+                    if (input) input.value = '';
                 }
-            });
+            }
         });
+    });
 </script>
 
 <?php include 'include/footer.php'; ?>

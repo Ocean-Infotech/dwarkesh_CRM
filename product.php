@@ -47,7 +47,7 @@ $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
 if ($mode === "add" && isset($_POST['btn_submit'])) {
     $name = trim($_POST['name'] ?? '');
     $name_escaped = addslashes($name);
-
+    $rate = $_POST['rate'] ?? 0;
     $hsn_code = addslashes($_POST['hsn_code'] ?? '');
     $default_length = $_POST['default_length'] ?? 0;
     $default_width = $_POST['default_width'] ?? 0;
@@ -69,7 +69,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     if (empty($error)) {
         $add_qry = "INSERT INTO $table SET
                 name='" . $name_escaped . "',
-
+                rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
                 default_width='" . $default_width . "',
@@ -86,7 +86,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
 
     $data = [
         'name' => htmlspecialchars($name),
-
+        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
         'default_length' => htmlspecialchars($_POST['default_length'] ?? ''),
         'default_width' => htmlspecialchars($_POST['default_width'] ?? ''),
@@ -99,7 +99,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
 if ($mode === "edit" && isset($_POST['btn_submit'])) {
     $name = trim($_POST['name'] ?? '');
     $name_escaped = addslashes($name);
-
+    $rate = $_POST['rate'] ?? 0;
     $hsn_code = addslashes($_POST['hsn_code'] ?? '');
     $default_length = $_POST['default_length'] ?? 0;
     $default_width = $_POST['default_width'] ?? 0;
@@ -121,7 +121,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     if (empty($error)) {
         $edit_qry = "UPDATE $table SET
                 name='" . $name_escaped . "',
-
+                rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
                 default_width='" . $default_width . "',
@@ -139,7 +139,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
 
     $data = [
         'name' => htmlspecialchars($name),
-
+        'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
         'default_length' => htmlspecialchars($_POST['default_length'] ?? ''),
         'default_width' => htmlspecialchars($_POST['default_width'] ?? ''),
@@ -197,19 +197,20 @@ if ($mode === "bom") {
         $posted_bom_id = intval($_POST['bom_id'] ?? 0);
         $material_name = trim($_POST['material_name'] ?? '');
         $material_name_escaped = addslashes($material_name);
-
+        $rate = $_POST['rate'] ?? '';
         $qty = $_POST['qty'] ?? '';
         $unit = trim($_POST['unit'] ?? '');
         $unit_escaped = addslashes($unit);
 
-        if ($material_name === '' || $qty === '' || $unit === '') {
-            $bom_error = 'Material Name, Qty and Unit are required.';
+        if ($material_name === '' || $rate === '' || $qty === '' || $unit === '') {
+            $bom_error = 'Material Name, Rate, Qty and Unit are required.';
         }
 
         if (empty($bom_error)) {
             if ($posted_bom_id > 0) {
                 $ai_db->aiQuery("UPDATE $bom_table SET
                         material_name='" . $material_name_escaped . "',
+                        rate='" . $rate . "',
                         qty='" . $qty . "',
                         unit='" . $unit_escaped . "',
                         updated_by='" . $_SESSION['aid'] . "'
@@ -222,6 +223,7 @@ if ($mode === "bom") {
                 $ai_db->aiQuery("INSERT INTO $bom_table SET
                         product_id='" . intval($id) . "',
                         material_name='" . $material_name_escaped . "',
+                        rate='" . $rate . "',
                         qty='" . $qty . "',
                         unit='" . $unit_escaped . "',
                         created_by='" . $_SESSION['aid'] . "'");
@@ -233,7 +235,7 @@ if ($mode === "bom") {
         $bom_data = [
             'id' => $posted_bom_id,
             'material_name' => htmlspecialchars($material_name),
-
+            'rate' => htmlspecialchars($rate),
             'qty' => htmlspecialchars($qty),
             'unit' => htmlspecialchars($unit)
         ];
@@ -375,7 +377,7 @@ if ($mode === 'add') {
                             <tr>
                                 <th width="80">Sr No.</th>
                                 <th>Name</th>
-
+                                <th>Rate</th>
                                 <th>HSN Code</th>
                                 <th>Default Size (LxWxH)</th>
                                 <th>Status</th>
@@ -388,7 +390,7 @@ if ($mode === 'add') {
                                     <tr>
                                         <td>#<?= $offset + $index + 1 ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
-
+                                        <td>Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
                                         <td><?= $row['default_length'] ?> x <?= $row['default_width'] ?> x
                                             <?= $row['default_height'] ?> cm
@@ -474,7 +476,8 @@ if ($mode === 'add') {
                             <div class="text-muted small mb-1">Selected Product</div>
                             <h5 class="fw-bold mb-1"><?= htmlspecialchars($selected_product['name']) ?></h5>
                             <div class="text-muted small">
-                                HSN: <?= htmlspecialchars($selected_product['hsn_code'] ?: '-') ?>
+                                HSN: <?= htmlspecialchars($selected_product['hsn_code'] ?: '-') ?> |
+                                Rate: Rs. <?= number_format($selected_product['rate'], 2) ?>
                             </div>
                         </div>
                         <div class="text-md-end">
@@ -523,7 +526,12 @@ if ($mode === 'add') {
                             </select>
                         </div>
 
-
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Rate <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" name="rate" class="form-control"
+                                placeholder="Enter Rate"
+                                value="<?= isset($bom_data['rate']) ? htmlspecialchars($bom_data['rate']) : '' ?>" required>
+                        </div>
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Qty <span class="text-danger">*</span></label>
@@ -565,7 +573,7 @@ if ($mode === 'add') {
                                     <tr>
                                         <th width="80">Sr No.</th>
                                         <th>Material Name</th>
-
+                                        <th>Rate</th>
                                         <th>Qty</th>
                                         <th>Unit</th>
                                         <th width="180" class="text-center">Action</th>
@@ -577,7 +585,7 @@ if ($mode === 'add') {
                                             <tr>
                                                 <td>#<?= $index + 1 ?></td>
                                                 <td class="fw-semibold"><?= htmlspecialchars($item['material_name']) ?></td>
-
+                                                <td>Rs. <?= number_format($item['rate'], 2) ?></td>
                                                 <td><?= htmlspecialchars($item['qty']) ?></td>
                                                 <td><?= htmlspecialchars($item['unit']) ?></td>
                                                 <td class="text-center">
@@ -628,7 +636,11 @@ if ($mode === 'add') {
                                     value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
                             </div>
 
-
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Rate</label>
+                                <input type="number" step="0.01" name="rate" class="form-control" placeholder="Enter Rate"
+                                    value="<?= isset($data['rate']) ? $data['rate'] : '' ?>">
+                            </div>
 
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">HSN Code</label>
