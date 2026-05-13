@@ -546,53 +546,6 @@ if (!$mode) {
 }
 
 if ($mode === 'add' && !isset($_POST['btn_submit'])) {
-    $last_order_res = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
-    if (!empty($last_order_res)) {
-        $last_order = $last_order_res[0];
-        $last_order_id = intval($last_order['id'] ?? 0);
-
-        // Keep system/series fields out of autofill; only copy order details.
-        unset(
-            $last_order['id'],
-            $last_order['order_no'],
-            $last_order['order_date'],
-            $last_order['created_by'],
-            $last_order['created_at'],
-            $last_order['updated_by'],
-            $last_order['updated_at'],
-            $last_order['deleted_by'],
-            $last_order['deleted_at'],
-            $last_order['is_deleted']
-        );
-
-        $data = array_merge((array) $data, $last_order);
-
-        if ($last_order_id > 0) {
-            $last_item_rows = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id='" . $last_order_id . "' ORDER BY id ASC");
-            $liner_items = [];
-            $duplex_items = [];
-
-            foreach ((array) $last_item_rows as $item_row) {
-                $item = [
-                    'material_id' => intval($item_row['material_id'] ?? 0),
-                    'name' => (string) ($item_row['material_name'] ?? ($item_row['name'] ?? '')),
-                    'rate' => (float) ($item_row['rate'] ?? 0),
-                    'qty' => (float) ($item_row['qty'] ?? ($item_row['pcs'] ?? 0))
-                ];
-
-                $group = strtolower((string) ($item_row['item_group'] ?? ''));
-                if ($group === 'duplex') {
-                    $duplex_items[] = $item;
-                } else {
-                    $liner_items[] = $item;
-                }
-            }
-
-            $data['liner_items_json'] = json_encode($liner_items, JSON_UNESCAPED_UNICODE);
-            $data['duplex_items_json'] = json_encode($duplex_items, JSON_UNESCAPED_UNICODE);
-        }
-    }
-
     $lastSeriesQuery = $ai_db->aiGetQuery("SELECT order_no FROM $table WHERE is_deleted=0 AND order_no REGEXP '^#?[0-9]+$' ORDER BY CAST(REPLACE(order_no, '#', '') AS UNSIGNED) DESC LIMIT 1");
     $lastSeriesNo = isset($lastSeriesQuery[0]['order_no']) ? intval(str_replace('#', '', (string) $lastSeriesQuery[0]['order_no'])) : 0;
     $nextSeriesNo = $lastSeriesNo + 1;
@@ -1553,6 +1506,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
     document.addEventListener('DOMContentLoaded', function () {
         const customerBrandsMap = <?= json_encode($customerBrandsMap) ?>;
         const currentBrand = "<?= htmlspecialchars($data['brand_name'] ?? '') ?>";
+        const currentMode = "<?= htmlspecialchars($mode) ?>";
 
         <?php if (!empty($error)) { ?>
             if (typeof showToast === 'function') {
@@ -1610,6 +1564,8 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         const laminasDeliveryPhoneInput = document.getElementById('laminas_delivery_phone');
         let linerItems = [];
         let duplexItems = [];
+        let isApplyingLastOrderPrefill = false;
+        let lastOrderPrefillKey = '';
 
         function updateBrands(custId, selectedBrand = '', targetSelect = brandSelect) {
             if (!targetSelect) return;
@@ -1885,6 +1841,125 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             }
         }
 
+        function setFieldValue(fieldName, fieldValue) {
+            const field = document.getElementsByName(fieldName)[0];
+            if (!field) return;
+
+            if (field.type === 'checkbox') {
+                field.checked = String(fieldValue) === '1';
+                return;
+            }
+
+            field.value = fieldValue ?? '';
+            if (field.tagName === 'SELECT' && typeof refreshSelect2Dropdown === 'function') {
+                refreshSelect2Dropdown(field);
+            }
+        }
+
+        function applyLastOrderPrefill(orderData, orderItems) {
+            isApplyingLastOrderPrefill = true;
+            try {
+                if (orderData.brand_name !== undefined) {
+                    updateBrands(custSelect ? custSelect.value : '', orderData.brand_name || '');
+                }
+
+                const valueFields = [
+                    'box_qty', 'box_qty_unit', 'upps', 'rate', 'costing_id',
+                    'sheet_length', 'sheet_width', 'md_code',
+                    'plate_status', 'print_status', 'die_status',
+                    'liner_delivery_id', 'liner_delivery_phone', 'top_count',
+                    'duplex_delivery_id', 'duplex_delivery_phone',
+                    'printing_by_id', 'print_color', 'print_qty',
+                    'print_delivery_id', 'print_delivery_phone',
+                    'die_maker', 'die_code', 'c_die_code', 'designer', 'plate',
+                    'lamination_type', 'lamination_extra',
+                    'laminas_delivery_id', 'laminas_delivery_phone',
+                    'bill_design', 'bill_plate', 'bill_daei', 'bill_photo_price',
+                    'bill_pcs', 'bill_rixa_bhadu', 'bill_borrow_charge', 'bill_remark'
+                ];
+
+                valueFields.forEach(function (fieldName) {
+                    setFieldValue(fieldName, orderData[fieldName] ?? '');
+                });
+
+                setFieldValue('half_film', orderData.half_film ?? 0);
+                setFieldValue('full_film', orderData.full_film ?? 0);
+                setFieldValue('job_pesting', orderData.job_pesting ?? 0);
+                setFieldValue('job_pin', orderData.job_pin ?? 0);
+                setFieldValue('job_punching', orderData.job_punching ?? 0);
+                setFieldValue('job_side_pesting', orderData.job_side_pesting ?? 0);
+
+                if (Array.isArray(orderItems)) {
+                    linerItems = [];
+                    duplexItems = [];
+
+                    orderItems.forEach(function (item) {
+                        const mappedItem = {
+                            material_id: parseInt(item.material_id || 0, 10) || 0,
+                            name: String(item.material_name || item.name || '').trim(),
+                            rate: parseNumber(item.rate || 0),
+                            qty: parseNumber((item.qty !== null && item.qty !== undefined && item.qty !== '') ? item.qty : item.pcs)
+                        };
+
+                        if (!mappedItem.name && mappedItem.material_id <= 0) {
+                            return;
+                        }
+
+                        const group = String(item.item_group || '').toLowerCase();
+                        if (group === 'duplex') {
+                            duplexItems.push(mappedItem);
+                        } else {
+                            linerItems.push(mappedItem);
+                        }
+                    });
+
+                    renderLinerItems();
+                    renderDuplexItems();
+                }
+
+                updateProductSizePreview();
+                if (typeof showToast === 'function') {
+                    showToast('Auto Fill', 'Last matching order details loaded.', 'success');
+                }
+            } finally {
+                isApplyingLastOrderPrefill = false;
+            }
+        }
+
+        function fetchLastOrderPrefillBySelection() {
+            if (currentMode !== 'add' || isApplyingLastOrderPrefill) return;
+            if (!custSelect || !productSelect) return;
+            if (costingSelect && String(costingSelect.value || '').trim() !== '') return;
+
+            const customerId = String(custSelect.value || '').trim();
+            const productId = String(productSelect.value || '').trim();
+            if (!customerId || !productId) return;
+
+            const requestKey = customerId + '_' + productId;
+            if (requestKey === lastOrderPrefillKey) return;
+            lastOrderPrefillKey = requestKey;
+
+            const formData = new FormData();
+            formData.append('action', 'get_last_order_prefill');
+            formData.append('customer_id', customerId);
+            formData.append('product_id', productId);
+
+            fetch('ajax.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.success) {
+                        return;
+                    }
+                    applyLastOrderPrefill(data.order || {}, data.items || []);
+                })
+                .catch(() => {
+                    // Silent fail; manual entry remains available.
+                });
+        }
+
         if (custSelect) {
             const $custSelect = jQuery(custSelect);
 
@@ -1893,10 +1968,12 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                 filterCostingsByCustomer(custSelect.value);
             }
 
-            $custSelect.on('change', function () {
+            $custSelect.on('change select2:select', function () {
                 const custId = this.value;
                 updateBrands(custId);
                 filterCostingsByCustomer(custId);
+                lastOrderPrefillKey = '';
+                fetchLastOrderPrefillBySelection();
             });
         }
 
@@ -2017,10 +2094,16 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
         }
 
         if (productSelect) {
-            jQuery(productSelect).on('change', function () {
+            jQuery(productSelect).on('change select2:select', function () {
                 updateProductSizePreview();
+                lastOrderPrefillKey = '';
+                fetchLastOrderPrefillBySelection();
             });
             updateProductSizePreview();
+        }
+
+        if (currentMode === 'add') {
+            fetchLastOrderPrefillBySelection();
         }
 
         if (linerMaterialSelect && linerMaterialSelect.value) {

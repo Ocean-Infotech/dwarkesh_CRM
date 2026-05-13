@@ -295,3 +295,105 @@ if ($_POST['action'] == 'get_costing_data') {
     echo json_encode(['success' => true, 'data' => $costing[0]]);
     exit;
 }
+
+if ($_POST['action'] == 'get_last_order_prefill') {
+    header('Content-Type: application/json');
+
+    $customer_id = intval($_POST['customer_id'] ?? 0);
+    $product_id = intval($_POST['product_id'] ?? 0);
+
+    if ($customer_id <= 0 || $product_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Customer and product are required.']);
+        exit;
+    }
+
+    $orderRes = $ai_db->aiGetQuery("SELECT * FROM tbl_orders WHERE is_deleted=0 AND customer_id='" . $customer_id . "' AND product_id='" . $product_id . "' ORDER BY id DESC LIMIT 1");
+    if (empty($orderRes)) {
+        echo json_encode(['success' => false, 'message' => 'No previous order found for selected customer and product.']);
+        exit;
+    }
+
+    $order = $orderRes[0];
+    $order_id = intval($order['id'] ?? 0);
+    $items = [];
+    if ($order_id > 0) {
+        $items = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id='" . $order_id . "' ORDER BY id ASC");
+    }
+
+    echo json_encode([
+        'success' => true,
+        'order' => $order,
+        'items' => $items
+    ]);
+    exit;
+}
+
+if ($_POST['action'] == 'get_last_costing_prefill') {
+    header('Content-Type: application/json');
+
+    $customer_id = intval($_POST['customer_id'] ?? 0);
+    $product_id = intval($_POST['product_id'] ?? 0);
+
+    if ($customer_id <= 0 || $product_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Customer and product are required.']);
+        exit;
+    }
+
+    $costingRes = $ai_db->aiGetQuery("SELECT * FROM tbl_costings WHERE is_deleted=0 AND customer_id='" . $customer_id . "' AND product_id='" . $product_id . "' ORDER BY id DESC LIMIT 1");
+    if (empty($costingRes)) {
+        echo json_encode(['success' => false, 'message' => 'No previous costing found for selected customer and product.']);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'costing' => $costingRes[0]
+    ]);
+    exit;
+}
+
+if ($_POST['action'] == 'get_last_quotation_prefill') {
+    header('Content-Type: application/json');
+
+    $customer_id = intval($_POST['customer_id'] ?? 0);
+    $product_id = intval($_POST['product_id'] ?? 0);
+
+    if ($customer_id <= 0 || $product_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Customer and product are required.']);
+        exit;
+    }
+
+    $matchRes = $ai_db->aiGetQuery("
+        SELECT q.id AS quotation_id, qi.id AS item_id
+        FROM tbl_quotations q
+        INNER JOIN tbl_quotation_items qi ON qi.quotation_id = q.id
+        WHERE q.is_deleted=0
+          AND q.customer_id='" . $customer_id . "'
+          AND qi.product_id='" . $product_id . "'
+        ORDER BY q.id DESC, qi.id DESC
+        LIMIT 1
+    ");
+
+    if (empty($matchRes)) {
+        echo json_encode(['success' => false, 'message' => 'No previous quotation found for selected customer and product.']);
+        exit;
+    }
+
+    $quotation_id = intval($matchRes[0]['quotation_id'] ?? 0);
+    $item_id = intval($matchRes[0]['item_id'] ?? 0);
+
+    $quotationRes = $ai_db->aiGetQuery("SELECT * FROM tbl_quotations WHERE id='" . $quotation_id . "' AND is_deleted=0 LIMIT 1");
+    $itemRes = $ai_db->aiGetQuery("SELECT * FROM tbl_quotation_items WHERE id='" . $item_id . "' LIMIT 1");
+
+    if (empty($quotationRes) || empty($itemRes)) {
+        echo json_encode(['success' => false, 'message' => 'Matching quotation data not found.']);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'quotation' => $quotationRes[0],
+        'item' => $itemRes[0]
+    ]);
+    exit;
+}

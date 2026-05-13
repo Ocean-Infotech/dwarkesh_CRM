@@ -483,36 +483,6 @@
         }
     }
 
-    if ($mode === "add" && !$error && !isset($_POST['btn_submit'])) {
-        $lastResult = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
-        if (!empty($lastResult)) {
-            $lastData = $lastResult[0];
-
-            // Keep sequence/date and audit fields fresh for new entry.
-            unset(
-                $lastData['id'],
-                $lastData['estimate_no'],
-                $lastData['estimate_date'],
-                $lastData['created_by'],
-                $lastData['created_at'],
-                $lastData['updated_by'],
-                $lastData['updated_at'],
-                $lastData['deleted_by'],
-                $lastData['deleted_at'],
-                $lastData['is_deleted']
-            );
-
-            if (isset($lastData['liner_items']) && is_string($lastData['liner_items'])) {
-                $lastData['liner_items'] = costing_normalize_line_items($lastData['liner_items'], $materialLookup);
-            }
-            if (isset($lastData['duplex_items']) && is_string($lastData['duplex_items'])) {
-                $lastData['duplex_items'] = costing_normalize_line_items($lastData['duplex_items'], $materialLookup);
-            }
-
-            $data = is_array($data) ? array_merge($data, $lastData) : $lastData;
-        }
-    }
-
     $all_data = [];
     $totalRecords = 0;
     $totalPages = 1;
@@ -1291,6 +1261,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const products = <?= json_encode($productMap, JSON_UNESCAPED_UNICODE) ?>;
     const linerMaterials = <?= json_encode($linerMaterials, JSON_UNESCAPED_UNICODE) ?>;
     const duplexMaterials = <?= json_encode($duplexMaterials, JSON_UNESCAPED_UNICODE) ?>;
+    const currentMode = "<?= htmlspecialchars($mode) ?>";
 
     const customerSelect = document.getElementById('customer_id');
     const brandSelect = document.getElementById('brand_name');
@@ -1347,6 +1318,10 @@ document.addEventListener('DOMContentLoaded', function () {
     let linerItems = [];
     let duplexItems = [];
     let activeMaterialContext = 'liner';
+    let isApplyingLastOrderPrefill = false;
+    let lastOrderPrefillKey = '';
+    let lastObservedSelectionKey = '';
+    let lastNoDataToastKey = '';
 
     const customerModalInstance = customerQuickAddModal ? bootstrap.Modal.getOrCreateInstance(customerQuickAddModal) : null;
     const productModalInstance = productQuickAddModal ? bootstrap.Modal.getOrCreateInstance(productQuickAddModal) : null;
@@ -1642,6 +1617,218 @@ document.addEventListener('DOMContentLoaded', function () {
         saleRateField.value = formatValue(singleRate + profit);
     }
 
+    function findMaterialFromCatalog(groupName, materialId, materialName) {
+        const normalizedGroup = String(groupName || '').toLowerCase();
+        const normalizedName = String(materialName || '').trim().toLowerCase();
+        const numericId = parseInt(materialId || 0, 10) || 0;
+
+        let catalog = linerMaterials;
+        if (normalizedGroup === 'duplex') {
+            catalog = duplexMaterials;
+        }
+
+        let found = null;
+        if (numericId > 0) {
+            found = catalog.find(function (mat) {
+                return parseInt(mat.id, 10) === numericId;
+            }) || null;
+        }
+
+        if (!found && normalizedName !== '') {
+            found = catalog.find(function (mat) {
+                return String(mat.name || '').trim().toLowerCase() === normalizedName;
+            }) || null;
+        }
+
+        if (!found && numericId > 0) {
+            found = linerMaterials.find(function (mat) {
+                return parseInt(mat.id, 10) === numericId;
+            }) || duplexMaterials.find(function (mat) {
+                return parseInt(mat.id, 10) === numericId;
+            }) || null;
+        }
+
+        if (!found && normalizedName !== '') {
+            found = linerMaterials.find(function (mat) {
+                return String(mat.name || '').trim().toLowerCase() === normalizedName;
+            }) || duplexMaterials.find(function (mat) {
+                return String(mat.name || '').trim().toLowerCase() === normalizedName;
+            }) || null;
+        }
+
+        return found;
+    }
+
+    function normalizeCostingItems(rawItems, groupName) {
+        let decoded = rawItems;
+        if (typeof decoded === 'string') {
+            try {
+                decoded = JSON.parse(decoded);
+            } catch (e) {
+                decoded = [];
+            }
+        }
+        if (!Array.isArray(decoded)) {
+            decoded = [];
+        }
+
+        return decoded.map(function (item) {
+            const materialFromCatalog = findMaterialFromCatalog(
+                groupName,
+                item.material_id || 0,
+                item.material_name || item.name || ''
+            );
+
+            let resolvedRate = roundValue(parseNumber(item.rate || 0));
+            if (resolvedRate <= 0 && materialFromCatalog) {
+                resolvedRate = roundValue(parseNumber(materialFromCatalog.rate || 0));
+            }
+
+            let resolvedWeight = roundValue(parseNumber(item.weight || item.qty || item.pcs || 0));
+            if (resolvedWeight <= 0 && materialFromCatalog) {
+                resolvedWeight = roundValue(parseNumber(materialFromCatalog.weight || 0));
+            }
+
+            const resolvedName = String(item.material_name || item.name || (materialFromCatalog ? materialFromCatalog.name : '') || '').trim();
+            const resolvedMaterialId = parseInt(item.material_id || 0, 10) || parseInt(materialFromCatalog ? materialFromCatalog.id : 0, 10) || 0;
+
+            return {
+                material_id: resolvedMaterialId,
+                name: resolvedName,
+                rate: resolvedRate,
+                weight: resolvedWeight,
+                amount: roundValue(resolvedRate * resolvedWeight)
+            };
+        }).filter(function (item) {
+            return item.name !== '' || item.material_id > 0;
+        });
+    }
+
+    function applyLastCostingPrefill(costingData) {
+        isApplyingLastOrderPrefill = true;
+        try {
+            if (costingData.brand_name !== undefined) {
+                populateBrandOptions(customerSelect.value, costingData.brand_name || '');
+            }
+
+            if (sheetLength) {
+                sheetLength.value = costingData.sheet_length ?? '';
+            }
+            if (sheetWidth) {
+                sheetWidth.value = costingData.sheet_width ?? '';
+            }
+            if (sheetHeight) {
+                sheetHeight.value = costingData.sheet_height ?? '';
+            }
+            if (document.getElementById('sheet_unit')) {
+                document.getElementById('sheet_unit').value = costingData.sheet_unit || 'inch';
+            }
+            if (uppsField) {
+                uppsField.value = parseNumber(costingData.upps || 0) > 0 ? costingData.upps : '1';
+            }
+
+            const setNumericField = function (id, value) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = value ?? '';
+                }
+            };
+
+            setNumericField('printing', costingData.printing);
+            setNumericField('laminas_value', costingData.laminas_value);
+            setNumericField('pesting', costingData.pesting);
+            setNumericField('punching', costingData.punching);
+            setNumericField('pin_rate', costingData.pin_rate);
+            setNumericField('pin_qty', costingData.pin_qty);
+            setNumericField('side_pesting', costingData.side_pesting);
+            setNumericField('uv_coating', costingData.uv_coating);
+            setNumericField('rixa_bhadu', costingData.rixa_bhadu);
+            setNumericField('profit', costingData.profit);
+            setNumericField('profit_percent', costingData.profit_percent);
+
+            const laminasNameEl = document.querySelector('input[name="laminas_name"]');
+            if (laminasNameEl) {
+                laminasNameEl.value = costingData.laminas_name || '';
+            }
+            const laminasUnitEl = document.querySelector('select[name="laminas_unit"]');
+            if (laminasUnitEl) {
+                laminasUnitEl.value = costingData.laminas_unit || 'single_side';
+            }
+            const remarkEl = document.querySelector('textarea[name="remark"]');
+            if (remarkEl) {
+                remarkEl.value = costingData.remark || '';
+            }
+
+            linerItems = normalizeCostingItems(costingData.liner_items || [], 'liner');
+            duplexItems = normalizeCostingItems(costingData.duplex_items || [], 'duplex');
+
+            renderLinerItems();
+            renderDuplexItems();
+            if (typeof showToast === 'function') {
+                showToast('Auto Fill', 'Last matching costing details loaded.', 'success');
+            }
+        } finally {
+            isApplyingLastOrderPrefill = false;
+        }
+    }
+
+    function fetchLastOrderPrefillForCosting() {
+        if (currentMode !== 'add' || isApplyingLastOrderPrefill) {
+            return;
+        }
+
+        const customerId = String(customerSelect ? customerSelect.value : '').trim();
+        const productId = String(productSelect ? productSelect.value : '').trim();
+        if (!customerId || !productId) {
+            return;
+        }
+
+        const requestKey = customerId + '_' + productId;
+        if (requestKey === lastOrderPrefillKey) {
+            return;
+        }
+        lastOrderPrefillKey = requestKey;
+
+        const formData = new FormData();
+        formData.append('action', 'get_last_costing_prefill');
+        formData.append('customer_id', customerId);
+        formData.append('product_id', productId);
+
+        fetch('ajax.php', {
+            method: 'POST',
+            body: formData
+        })
+            .then(function (response) {
+                return response.text();
+            })
+            .then(function (rawText) {
+                let data = null;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (err) {
+                    const jsonStart = rawText.indexOf('{');
+                    if (jsonStart >= 0) {
+                        data = JSON.parse(rawText.slice(jsonStart));
+                    }
+                }
+
+                if (!data || !data.success) {
+                    if (requestKey !== lastNoDataToastKey && typeof showToast === 'function') {
+                        const msg = (data && data.message) ? data.message : 'No previous costing found for selected customer and box.';
+                        showToast('Auto Fill', msg, 'warning');
+                        lastNoDataToastKey = requestKey;
+                    }
+                    lastOrderPrefillKey = '';
+                    return;
+                }
+                lastNoDataToastKey = '';
+                applyLastCostingPrefill(data.costing || {});
+            })
+            .catch(function () {
+                lastOrderPrefillKey = '';
+            });
+    }
+
     try {
         linerItems = JSON.parse(linerItemsJson.value || '[]');
         duplexItems = JSON.parse(duplexItemsJson.value || '[]');
@@ -1856,18 +2043,42 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    jQuery(customerSelect).on('change', function () {
+    jQuery(customerSelect).on('change select2:select', function () {
         brandSelect.dataset.selectedBrand = '';
         populateBrandOptions(this.value, '');
+        lastOrderPrefillKey = '';
+        fetchLastOrderPrefillForCosting();
     });
 
     jQuery(brandSelect).on('change', function () {
         brandSelect.dataset.selectedBrand = this.value;
     });
 
-    jQuery(productSelect).on('change', function () {
+    jQuery(productSelect).on('change select2:select', function () {
         applyProductDefaults(this.value, true);
+        lastOrderPrefillKey = '';
+        fetchLastOrderPrefillForCosting();
     });
+
+    if (currentMode === 'add') {
+        fetchLastOrderPrefillForCosting();
+
+        // Fallback watcher: if select events miss, still trigger autofill on selection change.
+        setInterval(function () {
+            const c = String(customerSelect ? customerSelect.value : '').trim();
+            const p = String(productSelect ? productSelect.value : '').trim();
+            if (!c || !p) {
+                return;
+            }
+
+            const observedKey = c + '_' + p;
+            if (observedKey !== lastObservedSelectionKey) {
+                lastObservedSelectionKey = observedKey;
+                lastOrderPrefillKey = '';
+                fetchLastOrderPrefillForCosting();
+            }
+        }, 800);
+    }
 
     jQuery(linerMaterialSelect).on('change', function () {
         fillMaterialInputs(linerMaterialSelect, linerRateInput, linerWeightInput, linerMaterials, true);

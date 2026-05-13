@@ -152,34 +152,6 @@
         }
     }
 
-    if ($mode === "add" && !isset($_POST['btn_submit'])) {
-        $lastQuotationRes = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
-        if (!empty($lastQuotationRes)) {
-            $lastQuotation = $lastQuotationRes[0];
-            $lastQuotationId = intval($lastQuotation['id'] ?? 0);
-
-            // Keep new quotation numbering/date/audit fields untouched.
-            unset(
-                $lastQuotation['id'],
-                $lastQuotation['quotation_no'],
-                $lastQuotation['quotation_date'],
-                $lastQuotation['created_by'],
-                $lastQuotation['created_at'],
-                $lastQuotation['updated_by'],
-                $lastQuotation['updated_at'],
-                $lastQuotation['deleted_by'],
-                $lastQuotation['deleted_at'],
-                $lastQuotation['is_deleted']
-            );
-
-            $data = $lastQuotation;
-
-            if ($lastQuotationId > 0) {
-                $data['items'] = $ai_db->aiGetQuery("SELECT * FROM $items_table WHERE quotation_id=$lastQuotationId");
-            }
-        }
-    }
-
     $all_data = [];
     if (!$mode) {
         $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC");
@@ -260,7 +232,7 @@
                         <div class="row g-4 mb-4">
                             <div class="col-md-3">
                                 <label class="form-label fw-bold">Customer (M/S) <span class="text-danger">*</span></label>
-                                <select name="customer_id" class="form-select select2" required>
+                                <select name="customer_id" id="quotation_customer_id" class="form-select select2" required>
                                     <option value="">Select Customer</option>
                                     <?php foreach ($customers as $customer) { ?>
                                         <option value="<?= $customer['id'] ?>" <?= (isset($data['customer_id']) && $data['customer_id'] == $customer['id']) ? 'selected' : '' ?>>
@@ -438,6 +410,7 @@
 
 <script>
 let targetRow = null;
+const quotationMode = "<?= htmlspecialchars($mode) ?>";
 
 function setTargetRow(btn) {
     targetRow = btn.closest('.item-row');
@@ -482,29 +455,119 @@ function pickCosting(costingId) {
 
 function addProductFromHeader() {
     const select = document.getElementById('header_product_id');
+    const customerSelect = document.getElementById('quotation_customer_id');
     const productId = select.value;
     if (!productId) {
         alert('Please select a product first');
         return;
     }
+    if (!customerSelect || !customerSelect.value) {
+        alert('Please select customer first');
+        return;
+    }
+
+    const customerId = customerSelect.value;
     const productName = select.options[select.selectedIndex].text;
-    const productDesc = select.options[select.selectedIndex].getAttribute('data-desc');
-    const productRate = select.options[select.selectedIndex].getAttribute('data-rate');
-    
-    // Always add a new row from template
-    addRow();
-    const lastRow = document.querySelector('#itemsTable tbody tr.item-row:last-child');
-    
-    lastRow.querySelector('.item-product-select').value = productId;
-    // Set Product Name in the description textarea as requested
-    lastRow.querySelector('textarea[name="item_description[]"]').value = productName;
-    lastRow.querySelector('.item-rate').value = productRate;
-    
-    // Trigger calculation
-    calculateRow(lastRow.querySelector('.item-qty'));
-    
-    // Reset header select
-    $(select).val('').trigger('change');
+    const productRate = parseFloat(select.options[select.selectedIndex].getAttribute('data-rate') || '0');
+
+    fetchLastQuotationPrefill(customerId, productId)
+        .then(function (prefill) {
+            const row = addRow();
+            if (!row) return;
+
+            row.querySelector('.item-product-select').value = productId;
+            row.querySelector('textarea[name="item_description[]"]').value = productName;
+            row.querySelector('.item-costing-id').value = 0;
+
+            if (prefill && prefill.item) {
+                const quotationData = prefill.quotation || {};
+                const item = prefill.item || {};
+
+                row.querySelector('.item-qty').value = parseFloat(item.qty || 0) > 0 ? parseFloat(item.qty) : 1;
+                row.querySelector('.item-unit').value = String(item.unit || 'nos');
+                row.querySelector('.item-rate').value = parseFloat(item.rate || 0) > 0 ? parseFloat(item.rate) : productRate;
+                row.querySelector('.item-costing-id').value = parseInt(item.costing_id || 0, 10) || 0;
+                row.querySelector('textarea[name="item_description[]"]').value = String(item.description || productName || '');
+
+                const validTillField = document.querySelector('input[name="valid_till"]');
+                if (validTillField) {
+                    validTillField.value = quotationData.valid_till || '';
+                }
+
+                const remarkField = document.querySelector('textarea[name="remark"]');
+                if (remarkField) {
+                    remarkField.value = quotationData.remark || '';
+                }
+
+                if (typeof showToast === 'function') {
+                    showToast('Auto Fill', 'Last matching quotation details loaded.', 'success');
+                }
+            } else {
+                row.querySelector('.item-qty').value = 1;
+                row.querySelector('.item-unit').value = 'nos';
+                row.querySelector('.item-rate').value = productRate;
+            }
+
+            calculateRow(row.querySelector('.item-qty'));
+            if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+                jQuery(select).val('').trigger('change');
+            } else {
+                select.value = '';
+            }
+        })
+        .catch(function () {
+            const row = addRow();
+            if (!row) return;
+
+            row.querySelector('.item-product-select').value = productId;
+            row.querySelector('textarea[name="item_description[]"]').value = productName;
+            row.querySelector('.item-qty').value = 1;
+            row.querySelector('.item-unit').value = 'nos';
+            row.querySelector('.item-rate').value = productRate;
+            row.querySelector('.item-costing-id').value = 0;
+            calculateRow(row.querySelector('.item-qty'));
+
+            if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+                jQuery(select).val('').trigger('change');
+            } else {
+                select.value = '';
+            }
+        });
+}
+
+function fetchLastQuotationPrefill(customerId, productId) {
+    const formData = new FormData();
+    formData.append('action', 'get_last_quotation_prefill');
+    formData.append('customer_id', customerId);
+    formData.append('product_id', productId);
+
+    return fetch('ajax.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.text())
+    .then(rawText => {
+        let data = null;
+        try {
+            data = JSON.parse(rawText);
+        } catch (err) {
+            const jsonStart = rawText.indexOf('{');
+            if (jsonStart >= 0) {
+                data = JSON.parse(rawText.slice(jsonStart));
+            }
+        }
+
+        if (!data || !data.success) {
+            return null;
+        }
+        return {
+            quotation: data.quotation || {},
+            item: data.item || {}
+        };
+    })
+    .catch(function () {
+        return null;
+    });
 }
 
 function addRow() {
@@ -519,6 +582,7 @@ function addRow() {
     
     document.querySelector('#itemsTable tbody').appendChild(newRow);
     updateRowNumbers();
+    return newRow;
 }
 
 function removeRow(btn) {
