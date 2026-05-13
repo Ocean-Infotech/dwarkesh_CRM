@@ -152,6 +152,34 @@
         }
     }
 
+    if ($mode === "add" && !isset($_POST['btn_submit'])) {
+        $lastQuotationRes = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
+        if (!empty($lastQuotationRes)) {
+            $lastQuotation = $lastQuotationRes[0];
+            $lastQuotationId = intval($lastQuotation['id'] ?? 0);
+
+            // Keep new quotation numbering/date/audit fields untouched.
+            unset(
+                $lastQuotation['id'],
+                $lastQuotation['quotation_no'],
+                $lastQuotation['quotation_date'],
+                $lastQuotation['created_by'],
+                $lastQuotation['created_at'],
+                $lastQuotation['updated_by'],
+                $lastQuotation['updated_at'],
+                $lastQuotation['deleted_by'],
+                $lastQuotation['deleted_at'],
+                $lastQuotation['is_deleted']
+            );
+
+            $data = $lastQuotation;
+
+            if ($lastQuotationId > 0) {
+                $data['items'] = $ai_db->aiGetQuery("SELECT * FROM $items_table WHERE quotation_id=$lastQuotationId");
+            }
+        }
+    }
+
     $all_data = [];
     if (!$mode) {
         $all_data = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC");

@@ -546,6 +546,53 @@ if (!$mode) {
 }
 
 if ($mode === 'add' && !isset($_POST['btn_submit'])) {
+    $last_order_res = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
+    if (!empty($last_order_res)) {
+        $last_order = $last_order_res[0];
+        $last_order_id = intval($last_order['id'] ?? 0);
+
+        // Keep system/series fields out of autofill; only copy order details.
+        unset(
+            $last_order['id'],
+            $last_order['order_no'],
+            $last_order['order_date'],
+            $last_order['created_by'],
+            $last_order['created_at'],
+            $last_order['updated_by'],
+            $last_order['updated_at'],
+            $last_order['deleted_by'],
+            $last_order['deleted_at'],
+            $last_order['is_deleted']
+        );
+
+        $data = array_merge((array) $data, $last_order);
+
+        if ($last_order_id > 0) {
+            $last_item_rows = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id='" . $last_order_id . "' ORDER BY id ASC");
+            $liner_items = [];
+            $duplex_items = [];
+
+            foreach ((array) $last_item_rows as $item_row) {
+                $item = [
+                    'material_id' => intval($item_row['material_id'] ?? 0),
+                    'name' => (string) ($item_row['material_name'] ?? ($item_row['name'] ?? '')),
+                    'rate' => (float) ($item_row['rate'] ?? 0),
+                    'qty' => (float) ($item_row['qty'] ?? ($item_row['pcs'] ?? 0))
+                ];
+
+                $group = strtolower((string) ($item_row['item_group'] ?? ''));
+                if ($group === 'duplex') {
+                    $duplex_items[] = $item;
+                } else {
+                    $liner_items[] = $item;
+                }
+            }
+
+            $data['liner_items_json'] = json_encode($liner_items, JSON_UNESCAPED_UNICODE);
+            $data['duplex_items_json'] = json_encode($duplex_items, JSON_UNESCAPED_UNICODE);
+        }
+    }
+
     $lastSeriesQuery = $ai_db->aiGetQuery("SELECT order_no FROM $table WHERE is_deleted=0 AND order_no REGEXP '^#?[0-9]+$' ORDER BY CAST(REPLACE(order_no, '#', '') AS UNSIGNED) DESC LIMIT 1");
     $lastSeriesNo = isset($lastSeriesQuery[0]['order_no']) ? intval(str_replace('#', '', (string) $lastSeriesQuery[0]['order_no'])) : 0;
     $nextSeriesNo = $lastSeriesNo + 1;

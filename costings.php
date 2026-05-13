@@ -483,6 +483,36 @@
         }
     }
 
+    if ($mode === "add" && !$error && !isset($_POST['btn_submit'])) {
+        $lastResult = $ai_db->aiGetQuery("SELECT * FROM $table WHERE is_deleted=0 ORDER BY id DESC LIMIT 1");
+        if (!empty($lastResult)) {
+            $lastData = $lastResult[0];
+
+            // Keep sequence/date and audit fields fresh for new entry.
+            unset(
+                $lastData['id'],
+                $lastData['estimate_no'],
+                $lastData['estimate_date'],
+                $lastData['created_by'],
+                $lastData['created_at'],
+                $lastData['updated_by'],
+                $lastData['updated_at'],
+                $lastData['deleted_by'],
+                $lastData['deleted_at'],
+                $lastData['is_deleted']
+            );
+
+            if (isset($lastData['liner_items']) && is_string($lastData['liner_items'])) {
+                $lastData['liner_items'] = costing_normalize_line_items($lastData['liner_items'], $materialLookup);
+            }
+            if (isset($lastData['duplex_items']) && is_string($lastData['duplex_items'])) {
+                $lastData['duplex_items'] = costing_normalize_line_items($lastData['duplex_items'], $materialLookup);
+            }
+
+            $data = is_array($data) ? array_merge($data, $lastData) : $lastData;
+        }
+    }
+
     $all_data = [];
     $totalRecords = 0;
     $totalPages = 1;
