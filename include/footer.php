@@ -14,7 +14,11 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
 ?>
 
 <?php if (!empty($lowStockCornerItems)) { ?>
-    <a href="product_stock.php#materials" id="lowStockCornerAlert" class="low-stock-corner-alert" aria-live="polite">
+    <div id="lowStockCornerAlert" class="low-stock-corner-alert" aria-live="polite" role="button" tabindex="0"
+        data-href="product_stock.php#materials">
+        <button type="button" class="low-stock-corner-close" id="lowStockCornerClose" aria-label="Close notification">
+            <i class="bi bi-x-lg"></i>
+        </button>
         <div class="low-stock-corner-icon">
             <i class="bi bi-exclamation-triangle-fill"></i>
         </div>
@@ -22,7 +26,7 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
             <div class="low-stock-corner-title">Low Stock</div>
             <div class="low-stock-corner-message" id="lowStockCornerMessage"></div>
         </div>
-    </a>
+    </div>
 <?php } ?>
 
 <!-- Bootstrap 5 JS -->
@@ -39,9 +43,46 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
         const lowStockThreshold = <?= isset($lowStockThreshold) ? intval($lowStockThreshold) : 500 ?>;
         const lowStockAlertBox = document.getElementById('lowStockCornerAlert');
         const lowStockAlertMessage = document.getElementById('lowStockCornerMessage');
+        const lowStockAlertClose = document.getElementById('lowStockCornerClose');
 
         if (lowStockAlertBox && Array.isArray(lowStockCornerItems) && lowStockCornerItems.length > 0) {
             let lowStockIndex = 0;
+            let lowStockDismissed = false;
+            let lowStockTimer = null;
+
+            const openLowStockPage = () => {
+                const targetUrl = lowStockAlertBox.getAttribute('data-href') || 'product_stock.php#materials';
+                window.location.href = targetUrl;
+            };
+
+            lowStockAlertBox.addEventListener('click', function (event) {
+                if (event.target.closest('#lowStockCornerClose')) {
+                    return;
+                }
+                openLowStockPage();
+            });
+
+            lowStockAlertBox.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openLowStockPage();
+                }
+            });
+
+            if (lowStockAlertClose) {
+                lowStockAlertClose.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    lowStockDismissed = true;
+                    if (lowStockTimer) {
+                        clearInterval(lowStockTimer);
+                    }
+                    lowStockAlertBox.classList.add('is-closing');
+                    setTimeout(function () {
+                        lowStockAlertBox.style.display = 'none';
+                    }, 280);
+                });
+            }
 
             const renderLowStockMessage = () => {
                 const current = lowStockCornerItems[lowStockIndex];
@@ -54,7 +95,10 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
             };
 
             renderLowStockMessage();
-            setInterval(function () {
+            lowStockTimer = setInterval(function () {
+                if (lowStockDismissed) {
+                    return;
+                }
                 lowStockAlertBox.classList.add('is-closing');
                 setTimeout(function () {
                     lowStockIndex = (lowStockIndex + 1) % lowStockCornerItems.length;

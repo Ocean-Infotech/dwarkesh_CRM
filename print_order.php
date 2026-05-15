@@ -16,7 +16,8 @@ $sql = "SELECT o.*,
         c5.contact_name as laminas_delivery_name,
         p.default_length as product_default_length,
         p.default_width as product_default_width,
-        p.default_height as product_default_height
+        p.default_height as product_default_height,
+        p.ply as ply
         FROM tbl_orders o
         LEFT JOIN tbl_customer c1 ON o.liner_delivery_id = c1.id
         LEFT JOIN tbl_customer c2 ON o.duplex_delivery_id = c2.id
@@ -31,6 +32,12 @@ if (empty($orderRes)) {
     die("Order not found");
 }
 $order = $orderRes[0];
+
+$printProductName = trim((string) ($order['product_name'] ?? ''));
+$printProductPly = trim((string) ($order['ply'] ?? ''));
+if ($printProductName !== '' && $printProductPly !== '' && stripos($printProductName, $printProductPly) === false) {
+    $printProductName .= ' - ' . $printProductPly;
+}
 
 $printProductSizeParts = [];
 if (!empty($order['product_default_length']) && floatval($order['product_default_length']) > 0) {
@@ -122,7 +129,7 @@ if (!file_exists($logoPath)) {
                 <td class="label-cell">Brand Name</td>
                 <td class="value-cell"><?= htmlspecialchars($order['brand_name']) ?></td>
                 <td class="label-cell">Product / Box</td>
-                <td class="value-cell"><?= htmlspecialchars($order['product_name']) ?></td>
+                <td class="value-cell"><?= htmlspecialchars($printProductName) ?></td>
             </tr>
             <tr>
                 <td class="label-cell">Total Quantity</td>

@@ -96,7 +96,7 @@ if (isset($_POST['btn_submit'])) {
 }
 
 // Fetch Items for Dropdown
-$products = $ai_db->aiGetQuery("SELECT id, name, stock_qty FROM tbl_product WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, name, ply, stock_qty FROM tbl_product WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
 $materials = $ai_db->aiGetQuery("SELECT id, name, stock_qty FROM tbl_materials WHERE is_deleted=0 AND status='active' ORDER BY name ASC");
 
 // Fetch History
@@ -109,7 +109,7 @@ $totalRecords = $history_count[0]['total'] ?? 0;
 $totalPages = ceil($totalRecords / $limit);
 
 $history = $ai_db->aiGetQuery("SELECT h.*, 
-    CASE WHEN h.item_type = 'product' THEN p.name ELSE m.name END as item_name
+    CASE WHEN h.item_type = 'product' THEN CONCAT(p.name, IF(TRIM(IFNULL(p.ply, '')) != '', CONCAT(' - ', TRIM(p.ply)), '')) ELSE m.name END as item_name
     FROM $table h
     LEFT JOIN tbl_product p ON h.item_type = 'product' AND h.item_id = p.id
     LEFT JOIN tbl_materials m ON h.item_type = 'material' AND h.item_id = m.id
@@ -140,7 +140,7 @@ $history = $ai_db->aiGetQuery("SELECT h.*,
                             <option value="">Select Product</option>
                             <?php foreach ($products as $p) { ?>
                                 <option value="<?= $p['id'] ?>" data-stock="<?= $p['stock_qty'] ?>">
-                                    <?= htmlspecialchars($p['name']) ?>
+                                    <?= htmlspecialchars(trim((string) ($p['name'] ?? '')) . ((trim((string) ($p['ply'] ?? '')) !== '') ? (' - ' . trim((string) $p['ply'])) : '')) ?>
                                 </option>
                             <?php } ?>
                         </select>

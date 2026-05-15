@@ -29,6 +29,22 @@ if (empty($product_customer_col)) {
     $ai_db->aiQuery("ALTER TABLE `$table` ADD `customer_id` int(11) DEFAULT NULL AFTER `id`");
 }
 
+// Ensure ply column exists for product.
+$product_ply_col = $ai_db->aiGetQuery("SHOW COLUMNS FROM `$table` LIKE 'ply'");
+if (empty($product_ply_col)) {
+    $ai_db->aiQuery("ALTER TABLE `$table` ADD `ply` varchar(50) DEFAULT NULL AFTER `name`");
+}
+
+function product_display_name_with_ply($name, $ply)
+{
+    $name = trim((string) $name);
+    $ply = trim((string) $ply);
+    if ($name === '') {
+        return '';
+    }
+    return $ply !== '' ? ($name . ' - ' . $ply) : $name;
+}
+
 // Ensure BOM table exists so the product-wise BOM feature works immediately.
 $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -54,6 +70,8 @@ $ai_db->aiQuery("CREATE TABLE IF NOT EXISTS `$bom_table` (
 if ($mode === "add" && isset($_POST['btn_submit'])) {
     $customer_id = intval($_POST['customer_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
+    $ply = trim($_POST['ply'] ?? '');
+    $ply_escaped = addslashes($ply);
     $name_escaped = addslashes($name);
     $rate = $_POST['rate'] ?? 0;
     $hsn_code = addslashes($_POST['hsn_code'] ?? '');
@@ -70,9 +88,9 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     } elseif ($name === '') {
         $error = 'Product Name is required.';
     } else {
-        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND is_deleted=0 LIMIT 1");
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND IFNULL(ply,'')='" . $ply_escaped . "' AND is_deleted=0 LIMIT 1");
         if (!empty($duplicate)) {
-            $error = 'This Product Name already exists for selected customer.';
+            $error = 'This Product Name and Ply already exists for selected customer.';
         }
     }
 
@@ -80,6 +98,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
         $add_qry = "INSERT INTO $table SET
                 customer_id='" . $customer_id . "',
                 name='" . $name_escaped . "',
+                ply='" . $ply_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
@@ -98,6 +117,7 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
     $data = [
         'customer_id' => $customer_id,
         'name' => htmlspecialchars($name),
+        'ply' => htmlspecialchars($ply),
         'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
         'default_length' => htmlspecialchars($_POST['default_length'] ?? ''),
@@ -113,6 +133,8 @@ if ($mode === "add" && isset($_POST['btn_submit'])) {
 if ($mode === "edit" && isset($_POST['btn_submit'])) {
     $customer_id = intval($_POST['customer_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
+    $ply = trim($_POST['ply'] ?? '');
+    $ply_escaped = addslashes($ply);
     $name_escaped = addslashes($name);
     $rate = $_POST['rate'] ?? 0;
     $hsn_code = addslashes($_POST['hsn_code'] ?? '');
@@ -129,9 +151,9 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     } elseif ($name === '') {
         $error = 'Product Name is required.';
     } else {
-        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+        $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE customer_id='" . $customer_id . "' AND name='" . $name_escaped . "' AND IFNULL(ply,'')='" . $ply_escaped . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
         if (!empty($duplicate)) {
-            $error = 'This Product Name already exists for selected customer.';
+            $error = 'This Product Name and Ply already exists for selected customer.';
         }
     }
 
@@ -139,6 +161,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
         $edit_qry = "UPDATE $table SET
                 customer_id='" . $customer_id . "',
                 name='" . $name_escaped . "',
+                ply='" . $ply_escaped . "',
                 rate='" . $rate . "',
                 hsn_code='" . $hsn_code . "',
                 default_length='" . $default_length . "',
@@ -158,6 +181,7 @@ if ($mode === "edit" && isset($_POST['btn_submit'])) {
     $data = [
         'customer_id' => $customer_id,
         'name' => htmlspecialchars($name),
+        'ply' => htmlspecialchars($ply),
         'rate' => htmlspecialchars($_POST['rate'] ?? ''),
         'hsn_code' => htmlspecialchars($_POST['hsn_code'] ?? ''),
         'default_length' => htmlspecialchars($_POST['default_length'] ?? ''),
@@ -400,6 +424,7 @@ if ($mode === 'add') {
                                 <th width="80">Sr No.</th>
                                 <th>Customer</th>
                                 <th>Name</th>
+                                <th>Ply</th>
                                 <th class="d-none">Rate</th>
                                 <th>HSN Code</th>
                                 <th>Default Size (LxWxH)</th>
@@ -414,6 +439,7 @@ if ($mode === 'add') {
                                         <td>#<?= $offset + $index + 1 ?></td>
                                         <td><?= htmlspecialchars($row['customer_name'] ?? '-') ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['name']) ?></span></td>
+                                        <td><?= htmlspecialchars($row['ply'] ?? '-') ?></td>
                                         <td class="d-none">Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
                                         <td><?= $row['default_length'] ?> x <?= $row['default_width'] ?> x
@@ -450,7 +476,7 @@ if ($mode === 'add') {
                                 <?php }
                             } else { ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-5 text-muted">
+                                    <td colspan="9" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox display-4 d-block mb-3"></i>
                                         No data available. Click "Add New" to get started.
                                     </td>
@@ -498,7 +524,7 @@ if ($mode === 'add') {
                         class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                         <div>
                             <div class="text-muted small mb-1">Selected Product</div>
-                            <h5 class="fw-bold mb-1"><?= htmlspecialchars($selected_product['name']) ?></h5>
+                            <h5 class="fw-bold mb-1"><?= htmlspecialchars(product_display_name_with_ply($selected_product['name'] ?? '', $selected_product['ply'] ?? '')) ?></h5>
                             <div class="text-muted small">
                                 HSN: <?= htmlspecialchars($selected_product['hsn_code'] ?: '-') ?> |
                                 <span class="d-none">Rate: Rs. <?= number_format($selected_product['rate'], 2) ?></span>
@@ -679,6 +705,12 @@ if ($mode === 'add') {
                                 <label class="form-label fw-bold">Name <span class="text-danger">*</span></label>
                                 <input type="text" name="name" class="form-control" placeholder="Enter Product Name"
                                     value="<?= isset($data['name']) ? htmlspecialchars($data['name']) : '' ?>" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Ply</label>
+                                <input type="text" name="ply" class="form-control" placeholder="Enter Ply (e.g. 3 Ply)"
+                                    value="<?= isset($data['ply']) ? htmlspecialchars($data['ply']) : '' ?>">
                             </div>
 
                             <div class="col-md-6 d-none">

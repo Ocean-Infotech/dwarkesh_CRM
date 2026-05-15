@@ -33,7 +33,12 @@ $productStats = $ai_db->aiGetQuery("SELECT COUNT(*) as total_count FROM tbl_prod
 $totalProducts = intval($productStats[0]['total_count'] ?? 0);
 
 // Recent 10 Orders (Global or Filtered? Let's keep it global or last 10 for the filtered month)
-$recentOrders = $ai_db->aiGetQuery("SELECT * FROM tbl_orders WHERE is_deleted=0 $whereFilter ORDER BY id DESC LIMIT 10");
+$recentOrders = $ai_db->aiGetQuery("SELECT o.*, p.ply AS product_ply
+    FROM tbl_orders o
+    LEFT JOIN tbl_product p ON p.id = o.product_id
+    WHERE o.is_deleted=0 $whereFilter
+    ORDER BY o.id DESC
+    LIMIT 10");
 
 // Fetch DAILY Revenue Data for the SELECTED month
 $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $filterMonth, $filterYear);
@@ -389,7 +394,14 @@ $extraFooter = '
                                         </div>
                                     </td>
                                     <td>
-                                        <?= htmlspecialchars($order['product_name']) ?>
+                                        <?php
+                                        $dashboardProductName = trim((string) ($order['product_name'] ?? ''));
+                                        $dashboardProductPly = trim((string) ($order['product_ply'] ?? ''));
+                                        if ($dashboardProductName !== '' && $dashboardProductPly !== '' && stripos($dashboardProductName, $dashboardProductPly) === false) {
+                                            $dashboardProductName .= ' - ' . $dashboardProductPly;
+                                        }
+                                        ?>
+                                        <?= htmlspecialchars($dashboardProductName) ?>
                                     </td>
                                     <td>
                                         <div class="fw-bold">₹

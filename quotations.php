@@ -45,7 +45,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, ply, description, rate FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
     $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_name, product_name, sale_rate FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC LIMIT 100");
 
     if (($mode === "add" || $mode === "edit") && isset($_POST['btn_submit'])) {
@@ -107,8 +107,11 @@
                 $p_id = intval($_POST['item_product_id'][$i] ?? 0);
                 if ($p_id <= 0) continue;
 
-                $p_data = $ai_db->aiGetQuery("SELECT name FROM tbl_product WHERE id=$p_id")[0] ?? null;
-                $p_name = addslashes($p_data['name'] ?? '');
+                $p_data = $ai_db->aiGetQuery("SELECT name, ply FROM tbl_product WHERE id=$p_id")[0] ?? null;
+                $p_name_raw = trim((string) ($p_data['name'] ?? ''));
+                $p_ply_raw = trim((string) ($p_data['ply'] ?? ''));
+                $p_name_display = $p_name_raw !== '' && $p_ply_raw !== '' ? ($p_name_raw . ' - ' . $p_ply_raw) : $p_name_raw;
+                $p_name = addslashes($p_name_display);
                 
                 $p_desc = addslashes($_POST['item_description'][$i] ?? '');
                 $p_qty = floatval($_POST['item_qty'][$i] ?? 0);
@@ -263,7 +266,7 @@
                                         <option value="">Select Product to Add</option>
                                         <?php foreach ($products as $p) { ?>
                                             <option value="<?= $p['id'] ?>" data-customer-id="<?= intval($p['customer_id'] ?? 0) ?>" data-desc="<?= htmlspecialchars($p['description'] ?? '') ?>" data-rate="<?= $p['rate'] ?? 0 ?>">
-                                                <?= htmlspecialchars($p['name']) ?>
+                                                <?= htmlspecialchars(trim((string) ($p['name'] ?? '')) . ((trim((string) ($p['ply'] ?? '')) !== '') ? (' - ' . trim((string) $p['ply'])) : '')) ?>
                                             </option>
                                         <?php } ?>
                                     </select>

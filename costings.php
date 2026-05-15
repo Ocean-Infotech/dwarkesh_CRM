@@ -131,7 +131,7 @@
     }
 
     $customers = $ai_db->aiGetQuery("SELECT id, contact_name, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
+    $products = $ai_db->aiGetQuery("SELECT id, customer_id, name, ply, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
     $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
     $materials = $ai_db->aiGetQuery("
         SELECT m.id, m.name, m.rate, m.weight, mt.name AS material_type_name
@@ -150,10 +150,15 @@
 
     $productMap = [];
     foreach ($products as $product) {
+        $productName = trim((string) ($product['name'] ?? ''));
+        $productPly = trim((string) ($product['ply'] ?? ''));
+        $productDisplayName = $productName !== '' && $productPly !== '' ? ($productName . ' - ' . $productPly) : $productName;
         $productMap[$product['id']] = [
             'id' => intval($product['id']),
             'customer_id' => intval($product['customer_id'] ?? 0),
-            'name' => $product['name'],
+            'name' => $productName,
+            'ply' => $productPly,
+            'display_name' => $productDisplayName,
             'default_length' => (float) ($product['default_length'] ?? 0),
             'default_width' => (float) ($product['default_width'] ?? 0),
             'default_height' => (float) ($product['default_height'] ?? 0)
@@ -237,7 +242,7 @@
         $remark = addslashes($_POST['remark'] ?? '');
 
         $customer_name = $customerNameMap[$customer_id] ?? '';
-        $product_name = $productMap[$product_id]['name'] ?? '';
+        $product_name = $productMap[$product_id]['display_name'] ?? '';
 
         if ($customer_id <= 0 || $product_id <= 0) {
             $error = 'M/S and Box Name are required.';
@@ -377,7 +382,7 @@
         $remark = addslashes($_POST['remark'] ?? '');
 
         $customer_name = $customerNameMap[$customer_id] ?? '';
-        $product_name = $productMap[$product_id]['name'] ?? '';
+        $product_name = $productMap[$product_id]['display_name'] ?? '';
 
         if ($customer_id <= 0 || $product_id <= 0) {
             $error = 'M/S and Box Name are required.';
@@ -606,7 +611,7 @@
                                 <option value="">All Products</option>
                                 <?php foreach ($products as $product) { ?>
                                     <option value="<?= $product['id'] ?>" <?= ($filters['filter_product_id'] ?? '') == $product['id'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($product['name']) ?>
+                                        <?= htmlspecialchars(trim((string) ($product['name'] ?? '')) . ((trim((string) ($product['ply'] ?? '')) !== '') ? (' - ' . trim((string) $product['ply'])) : '')) ?>
                                     </option>
                                 <?php } ?>
                             </select>
@@ -788,7 +793,7 @@
                                                         <option value="<?= $product['id'] ?>"
                                                             data-customer-id="<?= intval($product['customer_id'] ?? 0) ?>"
                                                             <?= (isset($data['product_id']) && $data['product_id'] == $product['id']) ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($product['name']) ?>
+                                                            <?= htmlspecialchars(trim((string) ($product['name'] ?? '')) . ((trim((string) ($product['ply'] ?? '')) !== '') ? (' - ' . trim((string) $product['ply'])) : '')) ?>
                                                         </option>
                                                     <?php } ?>
                                                 </select>
@@ -1539,8 +1544,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function appendProductData(product) {
+        const productPly = String(product.ply || '').trim();
+        const productDisplayName = productPly ? `${product.name} - ${productPly}` : product.name;
+        product.display_name = productDisplayName;
         products[product.id] = product;
-        upsertOption(productSelect, product.id, product.name, {
+        upsertOption(productSelect, product.id, productDisplayName, {
             customerId: product.customer_id || (customerSelect ? (customerSelect.value || '0') : '0')
         });
         allProductOptions = Array.from(productSelect.options).map(function (opt) {

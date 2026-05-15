@@ -198,11 +198,12 @@ body {
     background: linear-gradient(135deg, #b91c1c, #ef4444);
     border-radius: 14px;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
-    padding: 12px 12px 12px 10px;
+    padding: 12px 34px 12px 10px;
     display: flex;
     align-items: center;
     gap: 10px;
     border: 1px solid rgba(255, 255, 255, 0.22);
+    cursor: pointer;
 }
 
 .low-stock-corner-alert.is-closing {
@@ -266,6 +267,34 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.low-stock-corner-close {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.low-stock-corner-close i {
+    font-size: 10px;
+    line-height: 1;
+}
+
+.low-stock-corner-close:hover {
+    background: rgba(255, 255, 255, 0.32);
+    transform: scale(1.05);
 }
 
 [data-bs-theme="dark"] .low-stock-corner-alert {

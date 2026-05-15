@@ -65,6 +65,7 @@ if ($_POST['action'] == 'create_product_inline') {
 
     $customer_id = intval($_POST['customer_id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
+    $ply = trim($_POST['ply'] ?? '');
     $rate = is_numeric($_POST['rate'] ?? null) ? round((float) $_POST['rate'], 2) : 0;
     $hsn_code = trim($_POST['hsn_code'] ?? '');
     $default_length = is_numeric($_POST['default_length'] ?? null) ? round((float) $_POST['default_length'], 2) : 0;
@@ -79,15 +80,16 @@ if ($_POST['action'] == 'create_product_inline') {
     }
 
     $duplicate_customer_condition = $customer_id > 0 ? "customer_id='" . $customer_id . "'" : "(customer_id IS NULL OR customer_id='0')";
-    $duplicate = $ai_db->aiGetQuery("SELECT id FROM tbl_product WHERE $duplicate_customer_condition AND name='" . addslashes($name) . "' AND is_deleted=0 LIMIT 1");
+    $duplicate = $ai_db->aiGetQuery("SELECT id FROM tbl_product WHERE $duplicate_customer_condition AND name='" . addslashes($name) . "' AND IFNULL(ply,'')='" . addslashes($ply) . "' AND is_deleted=0 LIMIT 1");
     if (!empty($duplicate)) {
-        echo json_encode(['success' => false, 'message' => 'Product name already exists.']);
+        echo json_encode(['success' => false, 'message' => 'Product name and ply already exists.']);
         exit;
     }
 
     $ai_db->aiQuery("INSERT INTO tbl_product SET
         customer_id='" . ($customer_id > 0 ? $customer_id : 0) . "',
         name='" . addslashes($name) . "',
+        ply='" . addslashes($ply) . "',
         rate='" . $rate . "',
         hsn_code='" . addslashes($hsn_code) . "',
         default_length='" . $default_length . "',
@@ -105,6 +107,7 @@ if ($_POST['action'] == 'create_product_inline') {
             'id' => $insert_id,
             'customer_id' => $customer_id,
             'name' => $name,
+            'ply' => $ply,
             'rate' => $rate,
             'hsn_code' => $hsn_code,
             'default_length' => $default_length,

@@ -17,6 +17,24 @@ if (!function_exists('jobsheet_format_dimension')) {
     }
 }
 
+if (!function_exists('jobsheet_product_display_name')) {
+    function jobsheet_product_display_name($savedName, $ply)
+    {
+        $savedName = trim((string) $savedName);
+        $ply = trim((string) $ply);
+
+        if ($savedName === '') {
+            return '';
+        }
+
+        if ($ply !== '' && stripos($savedName, $ply) === false) {
+            return $savedName . ' - ' . $ply;
+        }
+
+        return $savedName;
+    }
+}
+
 $order_id = intval($_GET['order_id'] ?? 0);
 $from_date = $_GET['from_date'] ?? '';
 $to_date = $_GET['to_date'] ?? '';
@@ -34,7 +52,7 @@ if (!empty($to_date)) {
 }
 
 $where_sql = implode(" AND ", $where);
-$orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.default_height FROM tbl_orders o LEFT JOIN tbl_product p ON p.id = o.product_id WHERE $where_sql ORDER BY o.order_date DESC, o.id DESC");
+$orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.default_height, p.ply AS product_ply FROM tbl_orders o LEFT JOIN tbl_product p ON p.id = o.product_id WHERE $where_sql ORDER BY o.order_date DESC, o.id DESC");
 
 ?>
 <!DOCTYPE html>
@@ -115,7 +133,7 @@ $orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.d
                         <div class="info-box">
                             <div class="info-title">Product Specification</div>
                             <div class="info-value text-center mt-3">
-                                <?= htmlspecialchars($order['product_name']) ?>
+                                <?= htmlspecialchars(jobsheet_product_display_name($order['product_name'] ?? '', $order['product_ply'] ?? '')) ?>
                                 <?php if ($same_as_size_text !== '-') { ?>
                                     <span style="font-size: 14px; font-weight: 900; margin-left: 8px;">
                                         <?= htmlspecialchars($same_as_size_text) ?>

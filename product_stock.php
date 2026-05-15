@@ -51,7 +51,9 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
                                 <?php foreach ($products as $p) { ?>
                                     <tr>
                                         <td>
-                                            <div class="fw-bold"><?= htmlspecialchars($p['name']) ?></div>
+                                            <div class="fw-bold">
+                                                <?= htmlspecialchars(trim((string) ($p['name'] ?? '')) . ((trim((string) ($p['ply'] ?? '')) !== '') ? (' - ' . trim((string) $p['ply'])) : '')) ?>
+                                            </div>
                                             <div class="small text-muted">HSN:
                                                 <?= htmlspecialchars($p['hsn_code'] ?: '-') ?>
                                             </div>

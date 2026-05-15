@@ -19,7 +19,7 @@ $error = '';
 
 // Fetch master data
 $customers = $ai_db->aiGetQuery("SELECT id, contact_name, phone_no, brand_names FROM tbl_customer WHERE status='active' AND is_deleted=0 ORDER BY contact_name ASC");
-$products = $ai_db->aiGetQuery("SELECT id, customer_id, name, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
+$products = $ai_db->aiGetQuery("SELECT id, customer_id, name, ply, stock_qty, default_length, default_width, default_height FROM tbl_product WHERE status='active' AND is_deleted=0 AND customer_id IS NOT NULL AND customer_id > 0 ORDER BY name ASC");
 $costings = $ai_db->aiGetQuery("SELECT id, estimate_no, customer_id FROM tbl_costings WHERE is_deleted=0 ORDER BY id DESC");
 $materialTypes = $ai_db->aiGetQuery("SELECT id, name FROM tbl_material_type WHERE status='active' AND is_deleted=0 ORDER BY name ASC");
 
@@ -333,9 +333,13 @@ if (isset($_POST['btn_submit'])) {
 
     if (empty($error)) {
         $custRow = $ai_db->aiGetQuery("SELECT contact_name FROM tbl_customer WHERE id='$customer_id' LIMIT 1");
-        $prodRow = $ai_db->aiGetQuery("SELECT name FROM tbl_product WHERE id='$product_id' LIMIT 1");
+        $prodRow = $ai_db->aiGetQuery("SELECT name, ply FROM tbl_product WHERE id='$product_id' LIMIT 1");
         $customer_name = $custRow[0]['contact_name'] ?? '';
-        $product_name = $prodRow[0]['name'] ?? '';
+        $product_name = trim((string) ($prodRow[0]['name'] ?? ''));
+        $product_ply = trim((string) ($prodRow[0]['ply'] ?? ''));
+        if ($product_name !== '' && $product_ply !== '') {
+            $product_name .= ' - ' . $product_ply;
+        }
 
         $sql_parts = [];
         $set_sql_field = function ($field, $value) use (&$sql_parts, $order_columns) {
@@ -660,7 +664,8 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                                         data-default-width="<?= htmlspecialchars((string) ($p['default_width'] ?? '')) ?>"
                                         data-default-height="<?= htmlspecialchars((string) ($p['default_height'] ?? '')) ?>"
                                         <?= (isset($data['product_id']) && $data['product_id'] == $p['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($p['name']) ?> (Stock: <?= number_format($p['stock_qty'], 2) ?>)
+                                        <?= htmlspecialchars(trim((string) ($p['name'] ?? '')) . ((trim((string) ($p['ply'] ?? '')) !== '') ? (' - ' . trim((string) $p['ply'])) : '')) ?>
+                                        (Stock: <?= number_format($p['stock_qty'], 2) ?>)
                                     </option>
                                 <?php } ?>
                             </select>
@@ -2348,7 +2353,9 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                         const productId = String(product.id || '');
                         if (!productId) return;
 
-                        upsertOption(productSelect, productId, product.name || 'New Product', {
+                        const productPly = String(product.ply || '').trim();
+                        const productLabel = productPly ? `${product.name || 'New Product'} - ${productPly}` : (product.name || 'New Product');
+                        upsertOption(productSelect, productId, productLabel, {
                             customerId: product.customer_id || (custSelect ? (custSelect.value || '0') : '0'),
                             defaultLength: product.default_length,
                             defaultWidth: product.default_width,

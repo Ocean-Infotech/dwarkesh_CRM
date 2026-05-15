@@ -41,6 +41,7 @@ $queries = [
     "CREATE TABLE IF NOT EXISTS `tbl_product` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `name` varchar(255) NOT NULL,
+        `ply` varchar(50) DEFAULT NULL,
         `rate` decimal(10,2) DEFAULT NULL,
         `hsn_code` varchar(50) DEFAULT NULL,
         `default_length` decimal(10,2) DEFAULT NULL,
@@ -332,6 +333,7 @@ $queries = [
     // --- ALTER TABLE QUERIES FOR MODULE UPDATES ---
 
     // Sync tbl_product for Inventory Module
+    "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `ply` varchar(50) DEFAULT NULL AFTER `name` ",
     "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `mapped_material_id` int(11) DEFAULT NULL AFTER `description` ",
     "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `usage_qty` decimal(10,2) DEFAULT '0.00' AFTER `mapped_material_id` ",
     "ALTER TABLE `tbl_product` ADD COLUMN IF NOT EXISTS `stock_qty` decimal(10,2) DEFAULT '0.00' AFTER `usage_qty` ",
