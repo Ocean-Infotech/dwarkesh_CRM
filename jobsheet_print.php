@@ -114,7 +114,7 @@ $orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.d
                         </div>
                         <div class="info-box">
                             <div class="info-title">Product Specification</div>
-                            <div class="info-value">
+                            <div class="info-value text-center mt-3">
                                 <?= htmlspecialchars($order['product_name']) ?>
                                 <?php if ($same_as_size_text !== '-') { ?>
                                     <span style="font-size: 14px; font-weight: 900; margin-left: 8px;">
