@@ -15,7 +15,7 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
 
 <?php if (!empty($lowStockCornerItems)) { ?>
     <div id="lowStockCornerAlert" class="low-stock-corner-alert" aria-live="polite" role="button" tabindex="0"
-        data-href="product_stock.php#materials">
+        data-href="">
         <button type="button" class="low-stock-corner-close" id="lowStockCornerClose" aria-label="Close notification">
             <i class="bi bi-x-lg"></i>
         </button>
@@ -51,7 +51,7 @@ if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
             let lowStockTimer = null;
 
             const openLowStockPage = () => {
-                const targetUrl = lowStockAlertBox.getAttribute('data-href') || 'product_stock.php#materials';
+                const targetUrl = lowStockAlertBox.getAttribute('data-href') || '';
                 window.location.href = targetUrl;
             };
 
