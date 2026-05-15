@@ -188,7 +188,7 @@ body {
 .low-stock-corner-alert {
     position: fixed;
     right: 16px;
-    bottom: 50px;
+    top: 16px;
     z-index: 2050;
     width: 380px;
     height: 80px;
