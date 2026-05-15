@@ -21,14 +21,16 @@
         $status = $_POST['status'] ?? 'deactive';
         $brand_names = json_encode($_POST['brand_names'] ?? [], JSON_UNESCAPED_UNICODE);
 
-        if ($contact_name === '' || $phone_no === '') {
-            $error = 'Contact Name and Phone No. are required.';
+        if ($contact_name === '') {
+            $error = 'Contact Name is required.';
         } else {
             $phone_no = addslashes($phone_no);
             $contact_name = addslashes($contact_name);
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE phone_no='" . $phone_no . "' AND is_deleted=0 LIMIT 1");
-            if (!empty($duplicate)) {
-                $error = 'This phone number already exists.';
+            if ($phone_no !== '') {
+                $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE phone_no='" . $phone_no . "' AND is_deleted=0 LIMIT 1");
+                if (!empty($duplicate)) {
+                    $error = 'This phone number already exists.';
+                }
             }
         }
 
@@ -64,14 +66,16 @@
         $status = $_POST['status'] ?? 'deactive';
         $brand_names = json_encode($_POST['brand_names'] ?? [], JSON_UNESCAPED_UNICODE);
 
-        if ($contact_name === '' || $phone_no === '') {
-            $error = 'Contact Name and Phone No. are required.';
+        if ($contact_name === '') {
+            $error = 'Contact Name is required.';
         } else {
             $phone_no = addslashes($phone_no);
             $contact_name = addslashes($contact_name);
-            $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE phone_no='" . $phone_no . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
-            if (!empty($duplicate)) {
-                $error = 'This phone number already exists.';
+            if ($phone_no !== '') {
+                $duplicate = $ai_db->aiGetQuery("SELECT id FROM $table WHERE phone_no='" . $phone_no . "' AND id != '" . intval($id) . "' AND is_deleted=0 LIMIT 1");
+                if (!empty($duplicate)) {
+                    $error = 'This phone number already exists.';
+                }
             }
         }
 
@@ -247,7 +251,7 @@
                             <tr>
                                 <th width="80">Sr No.</th>
                                 <th>Contact Name</th>
-                                <th>Phone No.</th>
+                                <!-- <th>Phone No.</th> -->
                                 <th>City</th>
                                 <th>Status</th>
                                 <th width="200" class="text-center">Action</th>
@@ -259,7 +263,7 @@
                                     <tr>
                                         <td>#<?= $offset + $index + 1 ?></td>
                                         <td><span class="fw-semibold"><?= htmlspecialchars($row['contact_name']) ?></span></td>
-                                        <td><?= htmlspecialchars($row['phone_no']) ?></td>
+                                        <!-- <td><?= htmlspecialchars($row['phone_no']) ?></td> -->
                                         <td><?= htmlspecialchars($row['city_name']) ?></td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
@@ -342,9 +346,9 @@
                                 <input type="text" name="contact_name" class="form-control form-control" placeholder="Enter Contact Name" value="<?= isset($data['contact_name']) ? htmlspecialchars($data['contact_name']) : '' ?>" required>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 d-none">
                                 <label class="form-label fw-bold">Phone No. <span class="text-danger">*</span></label>
-                                <input type="text" name="phone_no" class="form-control form-control" placeholder="Enter 10 Digit Phone Number" value="<?= isset($data['phone_no']) ? htmlspecialchars($data['phone_no']) : '' ?>" required maxlength="10" minlength="10" pattern="\d{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);">
+                                <input type="text" name="phone_no" class="form-control form-control" placeholder="Enter 10 Digit Phone Number" value="<?= isset($data['phone_no']) ? htmlspecialchars($data['phone_no']) : '' ?>" maxlength="10" minlength="10" pattern="\d{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 10);">
                             </div>
 
                             <div class="col-6">
