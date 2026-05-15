@@ -1,6 +1,30 @@
 </div>
 </div>
 
+<?php
+$lowStockCornerItems = [];
+if (isset($lowStockMaterials) && is_array($lowStockMaterials)) {
+    foreach ($lowStockMaterials as $material) {
+        $lowStockCornerItems[] = [
+            'name' => (string) ($material['name'] ?? ''),
+            'stock_qty' => (float) ($material['stock_qty'] ?? 0),
+        ];
+    }
+}
+?>
+
+<?php if (!empty($lowStockCornerItems)) { ?>
+    <a href="product_stock.php#materials" id="lowStockCornerAlert" class="low-stock-corner-alert" aria-live="polite">
+        <div class="low-stock-corner-icon">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <div class="low-stock-corner-content">
+            <div class="low-stock-corner-title">Low Stock</div>
+            <div class="low-stock-corner-message" id="lowStockCornerMessage"></div>
+        </div>
+    </a>
+<?php } ?>
+
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <!-- jQuery -->
@@ -11,6 +35,39 @@
 <script src="assets/js/script.js"></script>
 <script>
     $(document).ready(function () {
+        const lowStockCornerItems = <?= json_encode($lowStockCornerItems, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        const lowStockThreshold = <?= isset($lowStockThreshold) ? intval($lowStockThreshold) : 500 ?>;
+        const lowStockAlertBox = document.getElementById('lowStockCornerAlert');
+        const lowStockAlertMessage = document.getElementById('lowStockCornerMessage');
+
+        if (lowStockAlertBox && Array.isArray(lowStockCornerItems) && lowStockCornerItems.length > 0) {
+            let lowStockIndex = 0;
+
+            const renderLowStockMessage = () => {
+                const current = lowStockCornerItems[lowStockIndex];
+                if (!current) {
+                    return;
+                }
+
+                const qty = Number(current.stock_qty || 0).toFixed(2);
+                lowStockAlertMessage.textContent = `${current.name} only ${qty} KG left (below ${lowStockThreshold} KG)`;
+            };
+
+            renderLowStockMessage();
+            setInterval(function () {
+                lowStockAlertBox.classList.add('is-closing');
+                setTimeout(function () {
+                    lowStockIndex = (lowStockIndex + 1) % lowStockCornerItems.length;
+                    renderLowStockMessage();
+                    lowStockAlertBox.classList.remove('is-closing');
+                    lowStockAlertBox.classList.add('is-opening');
+                    setTimeout(function () {
+                        lowStockAlertBox.classList.remove('is-opening');
+                    }, 320);
+                }, 280);
+            }, 5000);
+        }
+
         <?php if (isset($_GET['msg'])) {
             $msg = $_GET['msg'];
             if ($msg == 1) { ?> showToast('Success', 'Record added successfully!', 'success'); <?php }

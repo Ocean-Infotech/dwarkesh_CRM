@@ -4,6 +4,24 @@ if (!isset($_SESSION['aid'])) {
     header("Location: index.php");
     exit;
 }
+
+$lowStockThreshold = 500;
+$lowStockCountData = $ai_db->aiGetQuery("SELECT COUNT(*) as total
+    FROM tbl_materials m
+    WHERE m.is_deleted = 0
+      AND m.status = 'active'
+      AND m.stock_qty < " . intval($lowStockThreshold) . "
+    LIMIT 1");
+$lowStockCount = intval($lowStockCountData[0]['total'] ?? 0);
+
+$lowStockMaterials = $ai_db->aiGetQuery("SELECT m.id, m.name, m.stock_qty, mt.name as material_type_name
+    FROM tbl_materials m
+    LEFT JOIN tbl_material_type mt ON mt.id = m.material_type_id
+    WHERE m.is_deleted = 0
+      AND m.status = 'active'
+      AND m.stock_qty < " . intval($lowStockThreshold) . "
+    ORDER BY m.stock_qty ASC, m.name ASC
+    LIMIT 25");
 ?>
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">

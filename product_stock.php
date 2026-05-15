@@ -109,4 +109,15 @@ $materials = $ai_db->aiGetQuery("SELECT * FROM tbl_materials WHERE is_deleted=0 
     </div>
 </div>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.location.hash === '#materials') {
+            const materialsTab = document.querySelector('#materials-tab');
+            if (materialsTab && window.bootstrap && window.bootstrap.Tab) {
+                window.bootstrap.Tab.getOrCreateInstance(materialsTab).show();
+            }
+        }
+    });
+</script>
+
 <?php include 'include/footer.php'; ?>
