@@ -42,7 +42,7 @@ if (!empty($order['product_default_width']) && floatval($order['product_default_
 if (!empty($order['product_default_height']) && floatval($order['product_default_height']) > 0) {
     $printProductSizeParts[] = rtrim(rtrim(number_format((float) $order['product_default_height'], 2, '.', ''), '0'), '.');
 }
-$printProductSize = !empty($printProductSizeParts) ? implode(' x ', $printProductSizeParts) . ' cm' : '---';
+$printProductSize = !empty($printProductSizeParts) ? implode(' x ', $printProductSizeParts) . ' inch' : '---';
 $printSheetLength = (isset($order['sheet_length']) && $order['sheet_length'] !== '' && floatval($order['sheet_length']) > 0)
     ? rtrim(rtrim(number_format((float) $order['sheet_length'], 2, '.', ''), '0'), '.')
     : '---';

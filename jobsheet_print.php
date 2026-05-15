@@ -86,7 +86,7 @@ $orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.d
                     }
                 }
 
-                $same_as_size_text = !empty($same_as_parts) ? implode(' x ', $same_as_parts) . ' CM' : '-';
+                $same_as_size_text = !empty($same_as_parts) ? implode(' x ', $same_as_parts) . ' INCH' : '-';
                 ?>
                 <div class="jobsheet-container <?= ($index + 1 < count($orders)) ? 'page-break' : '' ?>">
 

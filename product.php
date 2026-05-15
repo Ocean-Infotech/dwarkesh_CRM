@@ -417,7 +417,7 @@ if ($mode === 'add') {
                                         <td class="d-none">Rs. <?= number_format($row['rate'], 2) ?></td>
                                         <td><?= htmlspecialchars($row['hsn_code']) ?></td>
                                         <td><?= $row['default_length'] ?> x <?= $row['default_width'] ?> x
-                                            <?= $row['default_height'] ?> cm
+                                            <?= $row['default_height'] ?> inch
                                         </td>
                                         <td>
                                             <?php if ($row['status'] == 'active') { ?>
@@ -507,7 +507,7 @@ if ($mode === 'add') {
                         <div class="text-md-end">
                             <div class="text-muted small mb-1">Default Size</div>
                             <div class="fw-semibold"><?= $selected_product['default_length'] ?> x
-                                <?= $selected_product['default_width'] ?> x <?= $selected_product['default_height'] ?> cm
+                                <?= $selected_product['default_width'] ?> x <?= $selected_product['default_height'] ?> inch
                             </div>
                         </div>
                     </div>
@@ -698,17 +698,17 @@ if ($mode === 'add') {
                                 <div class="row g-2">
                                     <div class="col-md-2">
                                         <input type="number" step="0.01" name="default_length" class="form-control"
-                                            placeholder="Length (cm)"
+                                            placeholder="Length (inch)"
                                             value="<?= isset($data['default_length']) ? $data['default_length'] : '' ?>">
                                     </div>
                                     <div class="col-md-2">
                                         <input type="number" step="0.01" name="default_width" class="form-control"
-                                            placeholder="Width (cm)"
+                                            placeholder="Width (inch)"
                                             value="<?= isset($data['default_width']) ? $data['default_width'] : '' ?>">
                                     </div>
                                     <div class="col-md-2">
                                         <input type="number" step="0.01" name="default_height" class="form-control"
-                                            placeholder="Height (cm)"
+                                            placeholder="Height (inch)"
                                             value="<?= isset($data['default_height']) ? $data['default_height'] : '' ?>">
                                     </div>
                                 </div>

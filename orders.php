@@ -1764,7 +1764,7 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
             const height = formatDimension(selected.dataset.defaultHeight || '');
             const parts = [length, width, height].filter(Boolean);
 
-            productSizePreview.value = parts.length ? `${parts.join(' x ')} cm` : '';
+            productSizePreview.value = parts.length ? `${parts.join(' x ')} inch` : '';
         }
 
         function renderLinerItems() {

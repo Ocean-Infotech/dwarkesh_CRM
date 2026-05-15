@@ -67,7 +67,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'generate_report') {
             }
         }
 
-        $same_as_size_text = !empty($same_as_parts) ? implode(' x ', $same_as_parts) . ' CM' : '-';
+        $same_as_size_text = !empty($same_as_parts) ? implode(' x ', $same_as_parts) . ' INCH' : '-';
         
         echo '<div class="report-card mb-4 border-start border-4 border-gold shadow-sm">';
         echo '<div class="d-flex justify-content-between align-items-center mb-4">';
