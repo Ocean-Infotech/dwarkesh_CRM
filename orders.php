@@ -687,6 +687,10 @@ $isFormMode = ($mode === 'add' || $mode === 'edit');
                     <div class="col-12">
                         <div class="sheet-size-container">
                             <label class="sheet-label">Seet Size</label>
+                            <div class="sheet-size-top-labels">
+                                <div class="sheet-size-top-label">Sheet Length (Decal)</div>
+                                <div class="sheet-size-top-label">Sheet Width (Cutting)</div>
+                            </div>
                             <div class="sheet-size-row">
                                 <div class="sheet-input-box">
                                     <input type="number" step="0.01" min="0.01" name="sheet_length"

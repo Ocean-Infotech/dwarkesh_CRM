@@ -43,6 +43,12 @@ if (!empty($order['product_default_height']) && floatval($order['product_default
     $printProductSizeParts[] = rtrim(rtrim(number_format((float) $order['product_default_height'], 2, '.', ''), '0'), '.');
 }
 $printProductSize = !empty($printProductSizeParts) ? implode(' x ', $printProductSizeParts) . ' cm' : '---';
+$printSheetLength = (isset($order['sheet_length']) && $order['sheet_length'] !== '' && floatval($order['sheet_length']) > 0)
+    ? rtrim(rtrim(number_format((float) $order['sheet_length'], 2, '.', ''), '0'), '.')
+    : '---';
+$printSheetWidth = (isset($order['sheet_width']) && $order['sheet_width'] !== '' && floatval($order['sheet_width']) > 0)
+    ? rtrim(rtrim(number_format((float) $order['sheet_width'], 2, '.', ''), '0'), '.')
+    : '---';
 
 // Fetch items
 $items = $ai_db->aiGetQuery("SELECT * FROM tbl_orders_item WHERE order_id = $id ORDER BY id ASC");
@@ -126,7 +132,10 @@ if (!file_exists($logoPath)) {
             </tr>
             <tr>
                 <td class="label-cell">Sheet Size</td>
-                <td class="value-cell"><?= htmlspecialchars($order['sheet_length']) ?> (L) x <?= htmlspecialchars($order['sheet_width']) ?> (W)</td>
+                <td class="value-cell">
+                    Sheet Length (Decal): <?= htmlspecialchars($printSheetLength) ?><br>
+                    Sheet Width (Cutting): <?= htmlspecialchars($printSheetWidth) ?>
+                </td>
                 <td class="label-cell">Upps Count</td>
                 <td class="value-cell"><?= htmlspecialchars($order['upps']) ?> Upps</td>
             </tr>
