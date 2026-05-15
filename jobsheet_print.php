@@ -98,7 +98,11 @@ $orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.d
                         <div class="text-end">
                             <div class="jobsheet-label">JOB SHEET</div>
                             <div class="order-no-large">#<?= htmlspecialchars($order['order_no']) ?></div>
+                            <div class="mt-1" style="font-size: 14px; font-weight: 900;">Order Date:
+                                <?= date('d-M-Y', strtotime($order['order_date'])) ?>
+                            </div>
                         </div>
+                        
                     </div>
 
                     <div class="info-grid">
@@ -118,9 +122,9 @@ $orders = $ai_db->aiGetQuery("SELECT o.*, p.default_length, p.default_width, p.d
                                     </span>
                                 <?php } ?>
                             </div>
-                            <div class="mt-1" style="font-size: 11px;">Order Date:
+                            <!-- <div class="mt-1" style="font-size: 11px;">Order Date:
                                 <?= date('d-M-Y', strtotime($order['order_date'])) ?>
-                            </div>
+                            </div> -->
                         </div>
                     </div>
 
