@@ -147,7 +147,7 @@ body {
 /* Keep a single center divider between liner and duplex blocks */
 .dual-detail-row > .col-6:first-child .items-table th:last-child,
 .dual-detail-row > .col-6:first-child .items-table td:last-child {
-    border-right: none !important;
+    /* border-right: none !important; */
 }
 
 /* Checkboxes */
